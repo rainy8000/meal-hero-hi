@@ -1,0 +1,1387 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<title>吃饭大挑战 · 小画家版</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#F4511E">
+<meta name="mobile-web-app-capable" content="yes">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body {
+    font-family: "PingFang SC", "Microsoft YaHei", "YouYuan", system-ui, sans-serif;
+    background: linear-gradient(160deg, #FFF3E0 0%, #FCE4EC 55%, #E8F5FE 100%);
+    color: #4A3B52;
+    user-select: none;
+    -webkit-user-select: none;
+    overflow-x: hidden;
+  }
+  button { font-family: inherit; cursor: pointer; touch-action: manipulation; }
+  b { font-weight: 800; }
+
+  #app { max-width: 560px; margin: 0 auto; min-height: 100vh; padding: 16px 16px 32px; }
+  .screen { display: none; animation: pop .25s ease; }
+  .screen.active { display: block; }
+  @keyframes pop { from { opacity: 0; transform: scale(.97); } to { opacity: 1; transform: scale(1); } }
+  .hidden { display: none !important; }
+
+  /* ===== 顶栏 ===== */
+  .topbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+  .hello { font-size: 26px; font-weight: 900; color: #6A4C93; }
+  .chips { display: flex; gap: 8px; }
+  .chip { background: #fff; border-radius: 999px; padding: 8px 14px; font-size: 17px; box-shadow: 0 3px 0 rgba(106,76,147,.12); white-space: nowrap; }
+
+  /* ===== 卡片与按钮 ===== */
+  .card { background: #fff; border-radius: 28px; padding: 24px; box-shadow: 0 8px 24px rgba(106,76,147,.10); margin-bottom: 16px; }
+  .btn-big {
+    display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%;
+    min-height: 68px; border: none; border-radius: 22px; font-size: 24px; font-weight: 800; color: #fff;
+    background: linear-gradient(180deg, #FF8A65, #F4511E); box-shadow: 0 6px 0 #D84315;
+    transition: transform .08s;
+  }
+  .btn-big:active { transform: translateY(4px); box-shadow: 0 2px 0 #D84315; }
+  .btn-big.alt { background: linear-gradient(180deg, #4FC3F7, #0288D1); box-shadow: 0 6px 0 #0277BD; }
+  .btn-big.alt:active { box-shadow: 0 2px 0 #0277BD; }
+  .btn-big.green { background: linear-gradient(180deg, #66BB6A, #2E7D32); box-shadow: 0 6px 0 #1B5E20; }
+  .btn-big.green:active { box-shadow: 0 2px 0 #1B5E20; }
+  .btn-big.pink { background: linear-gradient(180deg, #F06292, #C2185B); box-shadow: 0 6px 0 #AD1457; }
+  .btn-big.pink:active { box-shadow: 0 2px 0 #AD1457; }
+  .btn-big.gray { background: linear-gradient(180deg, #B0BEC5, #78909C); box-shadow: 0 6px 0 #546E7A; }
+  .btn-big.gray:active { box-shadow: 0 2px 0 #546E7A; }
+  .btn-big + .btn-big { margin-top: 12px; }
+  .btn-small {
+    min-height: 48px; padding: 10px 18px; border: none; border-radius: 16px;
+    font-size: 17px; font-weight: 700; color: #fff; background: #9575CD; box-shadow: 0 4px 0 #673AB7;
+  }
+  .btn-small:active { transform: translateY(3px); box-shadow: 0 1px 0 #673AB7; }
+  .btn-small.red { background: #EF5350; box-shadow: 0 4px 0 #C62828; }
+  .btn-link { background: none; border: none; color: #9575CD; font-size: 16px; font-weight: 700; padding: 14px; }
+
+  /* ===== 主页任务卡 ===== */
+  .mission { text-align: center; position: relative; overflow: hidden; }
+  .mission-emoji { font-size: 72px; line-height: 1; animation: bounce 1.6s ease infinite; }
+  @keyframes bounce { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+  .mission h2 { font-size: 30px; margin: 10px 0 6px; color: #6A4C93; }
+  .mission p { font-size: 18px; color: #8D6E63; margin-bottom: 18px; }
+  .mission .status { font-size: 17px; color: #F4511E; font-weight: 800; margin-top: 12px; }
+
+  .title { font-size: 24px; font-weight: 900; color: #6A4C93; text-align: center; margin-bottom: 14px; }
+
+  /* ===== 挑战页 ===== */
+  .ring-wrap { position: relative; width: 270px; margin: 4px auto 10px; }
+  .ring-wrap svg { width: 100%; display: block; }
+  .ring-bg { fill: none; stroke: #F3E5F5; stroke-width: 20; }
+  .ring-fg { fill: none; stroke: #66BB6A; stroke-width: 20; stroke-linecap: round; transform: rotate(-90deg); transform-origin: 50% 50%; transition: stroke .5s; }
+  .ring-fg.warn { stroke: #FFB300; }
+  .ring-fg.danger { stroke: #EF5350; }
+  .ring-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .ring-time { font-size: 46px; font-weight: 900; color: #5D4037; font-variant-numeric: tabular-nums; }
+  .ring-sub { font-size: 15px; color: #A1887F; }
+  .bowl { font-size: 46px; text-align: center; animation: wiggle 1.2s ease infinite; display: inline-block; }
+  @keyframes wiggle { 0%,100% { transform: rotate(-6deg); } 50% { transform: rotate(6deg); } }
+  .bowl.done { animation: none; }
+  .track { position: relative; height: 54px; margin: 6px 6px 14px; }
+  .track-line { position: absolute; top: 26px; left: 0; right: 0; height: 8px; border-radius: 99px; background: #F3E5F5; }
+  .track-fill { position: absolute; top: 26px; left: 0; height: 8px; border-radius: 99px; background: #FFB74D; width: 0%; transition: width 1s linear; }
+  .cat { position: absolute; top: 0; left: 0%; font-size: 42px; transform: translateX(-50%); transition: left 1s linear; }
+  .bubble {
+    position: relative; background: #fff; border-radius: 18px; padding: 12px 16px; font-size: 18px; font-weight: 700;
+    color: #6A4C93; text-align: center; margin: 0 8px 14px; box-shadow: 0 4px 12px rgba(106,76,147,.12); min-height: 52px;
+  }
+  .bubble.danger { color: #D84315; background: #FFF3E0; }
+
+  /* ===== 密码键盘 ===== */
+  .pin-dots { display: flex; justify-content: center; gap: 16px; margin: 18px 0 22px; }
+  .pin-dots span { width: 20px; height: 20px; border-radius: 50%; background: #E1BEE7; }
+  .pin-dots span.on { background: #8E24AA; }
+  .pin-pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; max-width: 340px; margin: 0 auto; }
+  .pin-pad button {
+    min-height: 64px; border: none; border-radius: 18px; font-size: 26px; font-weight: 800; color: #5E35B1;
+    background: #EDE7F6; box-shadow: 0 4px 0 #D1C4E9;
+  }
+  .pin-pad button:active { transform: translateY(3px); box-shadow: 0 1px 0 #D1C4E9; }
+  .pin-pad button.wide { grid-column: span 2; font-size: 18px; color: #fff; background: #B39DDB; box-shadow: 0 4px 0 #9575CD; }
+  .shake { animation: shake .35s; }
+  @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-8px)} 75%{transform:translateX(8px)} }
+
+  /* ===== 奖励页 ===== */
+  .reward { text-align: center; padding: 36px 24px; }
+  .reward .big { font-size: 86px; animation: bounce .9s ease infinite; }
+  .reward h2 { font-size: 30px; color: #6A4C93; margin: 12px 0 6px; }
+  .reward .gain { font-size: 40px; font-weight: 900; color: #F4511E; margin: 10px 0 18px; }
+  .reward p { font-size: 18px; color: #8D6E63; margin-bottom: 20px; }
+
+  /* ===== 画画 ===== */
+  .palette { display: flex; flex-wrap: nowrap; gap: 8px; justify-content: flex-start; margin-bottom: 8px; overflow-x: auto; padding: 4px 2px; -webkit-overflow-scrolling: touch; }
+  .swatch {
+    width: 44px; height: 44px; border-radius: 50%; border: 4px solid #fff; box-shadow: 0 3px 8px rgba(0,0,0,.18);
+    position: relative; flex: 0 0 auto;
+  }
+  .swatch.sel { outline: 4px solid #6A4C93; outline-offset: 2px; transform: scale(1.08); }
+  .swatch.lock::after { content: "🔒"; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+  .swatch.rainbow { background: conic-gradient(red, orange, yellow, green, cyan, blue, purple, red); }
+  .swatch.eraser { background: repeating-linear-gradient(45deg, #ECEFF1 0 8px, #CFD8DC 8px 16px); font-size: 20px; }
+  .swatch.eraser::before { content: "🧽"; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+  .tools { display: flex; gap: 8px; justify-content: center; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
+  .size-btn { width: 44px; height: 44px; border-radius: 14px; border: none; background: #fff; box-shadow: 0 3px 8px rgba(0,0,0,.12); display: flex; align-items: center; justify-content: center; }
+  .size-btn.sel { outline: 4px solid #6A4C93; }
+  #scr-draw .btn-small { min-height: 44px; padding: 8px 12px; font-size: 15px; }
+  .dot { border-radius: 50%; background: #6A4C93; }
+  canvas#pad { position: relative; width: 100%; height: 100%; display: block; touch-action: none; background: transparent; }
+  .pad-wrap { position: relative; width: 100%; aspect-ratio: 1 / 1; border-radius: 22px; overflow: hidden; background: #fff; box-shadow: 0 6px 18px rgba(106,76,147,.14); }
+  #pad-under { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  .modal input[type=text] { width: 100%; min-height: 46px; border: 3px solid #E1BEE7; border-radius: 12px; font-size: 18px; padding: 6px 12px; text-align: center; font-family: inherit; user-select: text; -webkit-user-select: text; margin-bottom: 14px; }
+
+  /* ===== 拓印模板 ===== */
+  body.drawing #app { max-width: 800px; }
+  #scr-draw .topbar { margin-bottom: 8px; }
+  #scr-draw .title { font-size: 21px; margin-bottom: 0; }
+  .tpl-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .tpl-label { font-size: 16px; font-weight: 800; color: #6A4C93; flex: 0 0 auto; }
+  .tpl-list { display: flex; gap: 8px; overflow-x: auto; padding: 4px 2px; -webkit-overflow-scrolling: touch; flex: 1; }
+  .tpl-btn { position: relative; flex: 0 0 auto; width: 50px; height: 50px; border: none; border-radius: 14px; background: #fff;
+    box-shadow: 0 3px 8px rgba(0,0,0,.12); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2px; }
+  .tpl-btn.sel { outline: 4px solid #8E24AA; outline-offset: 1px; }
+  .tpl-btn canvas { width: 36px; height: 36px; }
+  .tpl-btn .tpl-name { font-size: 10px; color: #8D6E63; font-weight: 700; line-height: 1; margin-top: 1px; }
+  .tpl-btn .tpl-lock { position: absolute; top: -7px; right: -7px; width: 22px; height: 22px; border-radius: 50%;
+    background: #FFB300; color: #fff; font-size: 12px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,.2); }
+
+  /* ===== 画廊 ===== */
+  .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+  .art { position: relative; background: #fff; border-radius: 18px; padding: 8px; box-shadow: 0 4px 12px rgba(106,76,147,.12); }
+  .art img { width: 100%; display: block; border-radius: 12px; }
+  .art .date { text-align: center; font-size: 14px; color: #A1887F; padding-top: 6px; }
+  .art .cont { width: 100%; margin-top: 8px; min-height: 38px; padding: 5px 4px; font-size: 14px; }
+  .art .del { position: absolute; top: -8px; right: -8px; width: 34px; height: 34px; border-radius: 50%; border: none; background: #EF5350; color: #fff; font-size: 16px; font-weight: 900; box-shadow: 0 3px 6px rgba(0,0,0,.25); }
+
+  /* ===== 模板管理 ===== */
+  .mg-item { width: 108px; text-align: center; }
+  .mg-item canvas { width: 100px; height: 100px; border-radius: 14px; background: #fff; box-shadow: 0 3px 8px rgba(0,0,0,.12); border: 3px solid transparent; }
+  .mg-item.locked canvas { border-color: #FFB300; }
+  .mg-item .nm { font-size: 14px; font-weight: 800; color: #6A4C93; margin: 5px 0 3px; }
+  .mg-item .btn-small { width: 100%; min-height: 38px; padding: 4px 2px; font-size: 13px; margin-top: 4px; }
+
+  /* ===== 家长区 ===== */
+  .form-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+  .form-row label { font-size: 18px; font-weight: 700; color: #6A4C93; }
+  .form-row input[type=text], .form-row input[type=tel], .form-row input[type=number] {
+    width: 170px; min-height: 48px; border: 3px solid #E1BEE7; border-radius: 14px; font-size: 20px;
+    padding: 6px 12px; text-align: center; font-family: inherit; background: #FAFAFA; user-select: text; -webkit-user-select: text;
+  }
+  .stepper { display: flex; align-items: center; gap: 12px; }
+  .stepper button { width: 48px; height: 48px; border: none; border-radius: 14px; font-size: 24px; font-weight: 900; color: #fff; background: #9575CD; box-shadow: 0 3px 0 #673AB7; }
+  .stepper b { font-size: 22px; min-width: 72px; text-align: center; }
+  .switch { position: relative; width: 64px; height: 36px; border-radius: 99px; background: #CFD8DC; border: none; transition: background .2s; }
+  .switch.on { background: #66BB6A; }
+  .switch::after { content: ""; position: absolute; top: 4px; left: 4px; width: 28px; height: 28px; border-radius: 50%; background: #fff; transition: left .2s; }
+  .switch.on::after { left: 32px; }
+  .log { font-size: 15px; color: #795548; line-height: 2; }
+  .log .ok { color: #2E7D32; font-weight: 700; }
+  .log .late { color: #E65100; font-weight: 700; }
+  .empty { text-align: center; color: #B39DDB; font-size: 17px; padding: 26px 0; }
+
+  /* ===== 弹窗 / 提示 ===== */
+  #modal-mask { position: fixed; inset: 0; background: rgba(74,59,82,.45); display: none; align-items: center; justify-content: center; z-index: 60; padding: 24px; }
+  #modal-mask.show { display: flex; }
+  .modal { background: #fff; border-radius: 24px; padding: 26px; max-width: 380px; width: 100%; text-align: center; animation: pop .2s ease; }
+  .modal h3 { font-size: 22px; color: #6A4C93; margin-bottom: 10px; }
+  .modal p { font-size: 17px; color: #795548; margin-bottom: 18px; line-height: 1.6; }
+  .modal .row { display: flex; gap: 10px; }
+  .modal .row button { flex: 1; }
+  #toast { position: fixed; left: 50%; bottom: 40px; transform: translateX(-50%); background: rgba(74,59,82,.92); color: #fff;
+    padding: 12px 22px; border-radius: 99px; font-size: 17px; font-weight: 700; z-index: 80; opacity: 0; pointer-events: none; transition: opacity .25s; max-width: 86vw; text-align: center; }
+  #toast.show { opacity: 1; }
+  #confetti { position: fixed; inset: 0; pointer-events: none; z-index: 70; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ============ 主页 ============ -->
+  <section class="screen active" id="scr-home">
+    <div class="topbar">
+      <div class="hello">嗨，<span id="hello-name">宝贝</span>！🎨</div>
+      <div class="chips">
+        <span class="chip">💧 <b id="drops-home">0</b></span>
+        <span class="chip">🔥 连续 <b id="streak-home">0</b> 天</span>
+      </div>
+    </div>
+    <div class="card mission">
+      <div class="mission-emoji">🍚</div>
+      <h2>吃饭大挑战</h2>
+      <p id="mission-desc"></p>
+      <button class="btn-big" id="btn-start">开始挑战！</button>
+      <div class="status hidden" id="mission-status"></div>
+    </div>
+    <button class="btn-big alt" id="btn-go-draw">🎨 去画画</button>
+    <button class="btn-big pink" id="btn-go-gallery">🖼️ 我的画廊</button>
+    <div style="text-align:center"><button class="btn-link" id="btn-parent">家长专区 👉</button></div>
+  </section>
+
+  <!-- ============ 挑战页 ============ -->
+  <section class="screen" id="scr-challenge">
+    <div class="title" id="ch-title">🍚 吃饭大挑战</div>
+    <div class="ring-wrap">
+      <svg viewBox="0 0 270 270">
+        <circle class="ring-bg" cx="135" cy="135" r="120"></circle>
+        <circle class="ring-fg" id="ring-fg" cx="135" cy="135" r="120"></circle>
+      </svg>
+      <div class="ring-center">
+        <div class="ring-time" id="ring-time">30:00</div>
+        <div class="ring-sub" id="ring-sub">请开动吧！</div>
+      </div>
+    </div>
+    <div style="text-align:center"><span class="bowl" id="bowl">🍜</span></div>
+    <div class="track">
+      <div class="track-line"></div>
+      <div class="track-fill" id="track-fill"></div>
+      <div class="cat" id="cat">🐱</div>
+    </div>
+    <div class="bubble" id="bubble">要在 <b id="bubble-min">30</b> 分钟内吃完，就能赢颜料哦！加油！</div>
+    <button class="btn-big green" id="btn-finish">我吃完啦！🎉</button>
+    <div style="text-align:center"><button class="btn-link" id="btn-ch-home">先回主页看看</button></div>
+  </section>
+
+  <!-- ============ 密码确认页 ============ -->
+  <section class="screen" id="scr-pin">
+    <div class="title" id="pin-title">🔐 请爸爸妈妈输入密码</div>
+    <div class="card">
+      <div id="pin-phase1">
+        <p id="pin-hint" style="text-align:center;color:#8D6E63;font-size:17px;margin-bottom:4px">宝宝说吃完饭啦，请家长确认</p>
+        <div class="pin-dots" id="pin-dots"><span></span><span></span><span></span><span></span></div>
+        <div class="pin-pad">
+          <button data-k="1">壹</button><button data-k="2">贰</button><button data-k="3">叁</button>
+          <button data-k="4">肆</button><button data-k="5">伍</button><button data-k="6">陆</button>
+          <button data-k="7">柒</button><button data-k="8">捌</button><button data-k="9">玖</button>
+          <button class="wide" data-k="del">⬅ 删除</button><button data-k="0">零</button>
+        </div>
+        <div style="text-align:center"><button class="btn-link" id="btn-pin-cancel1">取消，返回</button></div>
+      </div>
+      <div id="pin-phase2" class="hidden" style="text-align:center">
+        <div style="font-size:64px">🍽️</div>
+        <h3 style="font-size:22px;color:#6A4C93;margin:8px 0 16px">宝宝按时吃完了吗？</h3>
+        <button class="btn-big green" id="btn-ontime">✅ 按时完成</button>
+        <button class="btn-big gray" id="btn-late">⏰ 超时了</button>
+        <div style="text-align:center"><button class="btn-link" id="btn-pin-cancel">返回</button></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 奖励页 ============ -->
+  <section class="screen" id="scr-reward">
+    <div class="card reward">
+      <div class="big" id="reward-emoji">🎉</div>
+      <h2 id="reward-title">太棒啦！</h2>
+      <div class="gain" id="reward-gain">+8 💧</div>
+      <p id="reward-msg">颜料已到账，去解锁新颜色画个画吧！</p>
+      <button class="btn-big alt" id="btn-reward-draw">🎨 去画画</button>
+      <button class="btn-big" id="btn-reward-home">回主页</button>
+    </div>
+  </section>
+
+  <!-- ============ 画画门禁页 ============ -->
+  <section class="screen" id="scr-drawlock">
+    <div class="card reward">
+      <div class="mission-emoji">🍚</div>
+      <h2 style="font-size:26px;color:#6A4C93;margin:10px 0 6px">先吃饭，才能画画哦！</h2>
+      <p style="font-size:17px;color:#8D6E63;margin-bottom:20px">完成今天的吃饭大挑战（请家长确认后），<br>就解锁画画啦！🎨</p>
+      <button class="btn-big" id="btn-dl-eat">去吃饭大挑战！</button>
+      <div style="text-align:center"><button class="btn-link" id="btn-dl-pass">家长特许一次 👉</button></div>
+      <div style="text-align:center"><button class="btn-link" id="btn-dl-home">回主页</button></div>
+    </div>
+  </section>
+
+  <!-- ============ 画画页 ============ -->
+  <section class="screen" id="scr-draw">
+    <div class="topbar">
+      <div class="title" style="margin:0">🎨 自由创作</div>
+      <div class="chips"><span class="chip">💧 <b id="drops-draw">0</b></span></div>
+    </div>
+    <div class="tpl-row">
+      <span class="tpl-label">拓印🖼️</span>
+      <button class="btn-small" id="btn-import" style="min-height:42px;padding:6px 12px;font-size:15px;flex:0 0 auto">📷 导入</button>
+      <button class="btn-small" id="btn-tpl-manage" style="min-height:42px;padding:6px 12px;font-size:15px;flex:0 0 auto" title="家长管理">⚙️</button>
+      <input type="file" id="tpl-file" accept="image/*" style="display:none">
+      <div class="tpl-list" id="tpl-list"></div>
+    </div>
+    <div class="palette" id="palette"></div>
+    <div class="tools">
+      <button class="size-btn" data-s="4"><span class="dot" style="width:10px;height:10px"></span></button>
+      <button class="size-btn sel" data-s="10"><span class="dot" style="width:20px;height:20px"></span></button>
+      <button class="size-btn" data-s="22"><span class="dot" style="width:28px;height:28px"></span></button>
+      <button class="swatch eraser" id="btn-eraser" title="橡皮擦"></button>
+      <button class="btn-small" id="btn-undo">↩️ 撤销</button>
+      <button class="btn-small red" id="btn-clear">🗑️ 重画</button>
+      <button class="btn-small" id="btn-save" style="background:#66BB6A;box-shadow:0 4px 0 #2E7D32">💾 存入画廊</button>
+    </div>
+    <div class="pad-wrap">
+      <canvas id="pad-under" width="720" height="720"></canvas>
+      <canvas id="pad" width="720" height="720"></canvas>
+    </div>
+    <div style="text-align:center"><button class="btn-link" id="btn-draw-back">回主页</button></div>
+  </section>
+
+  <!-- ============ 画廊页 ============ -->
+  <section class="screen" id="scr-gallery">
+    <div class="title">🖼️ 我的小画廊</div>
+    <div class="grid" id="gallery-grid"></div>
+    <div class="empty" id="gallery-empty">还没有作品哦～<br>去画一幅画吧！🎨</div>
+    <div style="text-align:center"><button class="btn-link" id="btn-gallery-back">回主页</button></div>
+  </section>
+
+  <!-- ============ 家长区 ============ -->
+  <section class="screen" id="scr-parent">
+    <div class="title">👩‍👧 家长专区</div>
+
+    <div class="card">
+      <div class="form-row"><label>宝宝的名字</label><input type="text" id="in-name" maxlength="10"></div>
+      <div class="form-row"><label>吃饭限时（分钟）</label>
+        <div class="stepper"><button id="min-minus">−</button><b id="min-val">30</b><button id="min-plus">＋</button></div>
+      </div>
+      <div class="form-row"><label>家长密码（4位）</label><input type="tel" id="in-pin" maxlength="4" inputmode="numeric"></div>
+      <p style="font-size:13px;color:#B39DDB;margin:-8px 0 14px">※ 初始密码是 1234，在这里改成好记的新密码吧（孩子看不到这个页面）</p>
+      <div class="form-row"><label>音效</label><button class="switch on" id="sw-sound"></button></div>
+      <button class="btn-small" id="btn-save-cfg" style="width:100%;min-height:56px;font-size:20px">💾 保存设置</button>
+    </div>
+
+    <div class="card">
+      <div class="form-row"><label>奖励规则</label></div>
+      <p style="font-size:15px;color:#795548;line-height:2">
+        ✅ 按时完成：<b>+8</b> 滴颜料（每天第一次再 <b>+4</b>）<br>
+        ⏰ 超时完成：<b>+3</b> 滴颜料（鼓励参与）<br>
+        🖼️ 画画：当天完成一次吃饭挑战后解锁，家长可密码特许<br>
+        🎨 解锁一支颜色：6 滴 ｜ 🌈 彩虹画笔：20 滴 ｜ 🔒 上锁的拓印：8 滴（上方可管理）
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="form-row"><label>拓印模板管理</label><span style="font-size:13px;color:#B39DDB">上锁后孩子需 8 滴颜料解锁</span></div>
+      <div id="tpl-manage" style="display:flex;flex-wrap:wrap;gap:12px"></div>
+    </div>
+
+    <div class="card">
+      <div class="form-row"><label>当前挑战</label><button class="btn-small red" id="btn-cancel-ch">取消进行中的挑战</button></div>
+      <div class="form-row"><label>最近记录</label></div>
+      <div class="log" id="log"></div>
+    </div>
+
+    <div class="card" style="text-align:center">
+      <button class="btn-link" id="btn-parent-back">⬅ 返回主页</button>
+      <button class="btn-link" id="btn-reset" style="color:#EF5350">清空全部数据</button>
+    </div>
+  </section>
+</div>
+
+<!-- 弹窗 -->
+<div id="modal-mask"><div class="modal" id="modal-box"></div></div>
+<div id="toast"></div>
+<canvas id="confetti"></canvas>
+
+<script>
+"use strict";
+/* ================= 数据 ================= */
+const KEY = "mealHeroV1";
+const DEF = { name: "宝贝", mealMin: 30, pin: "1234", sound: true,
+  drops: 0, unlocked: ["c1","c2","c3","c4"], streak: 0, lastOnTime: null,
+  history: [], drawings: [], active: null, tpl: "free", unlockedTpl: [],
+  customTpls: [], tplLocks: { dino: true, unicorn: true },
+  lastMealDate: null, drawPassDate: null, updatedAt: 0 };
+let S;
+try { S = Object.assign({}, DEF, JSON.parse(localStorage.getItem(KEY) || "{}")); }
+catch (e) { S = Object.assign({}, DEF); }
+// 旧版本数据迁移：单个自定义模板 → 列表
+if (S.customTpl) {
+  if (!S.customTpls.length) S.customTpls = [{ id: "cu_" + Date.now(), name: "导入1", png: S.customTpl.png }];
+  delete S.customTpl;
+}
+if (!S.tplLocks) S.tplLocks = { dino: true, unicorn: true };
+if (S.tpl === "custom") S.tpl = S.customTpls.length ? S.customTpls[0].id : "free";
+
+const COLORS = [
+  { id: "c1", name: "黑色", hex: "#37474F" }, { id: "c2", name: "红色", hex: "#E53935" },
+  { id: "c3", name: "黄色", hex: "#FBC02D" }, { id: "c4", name: "蓝色", hex: "#1E88E5" },
+  { id: "c5", name: "绿色", hex: "#43A047" }, { id: "c6", name: "紫色", hex: "#8E24AA" },
+  { id: "c7", name: "橙色", hex: "#FB8C00" }, { id: "c8", name: "粉色", hex: "#EC407A" },
+  { id: "c9", name: "棕色", hex: "#795548" }, { id: "c10", name: "青色", hex: "#00ACC1" },
+];
+const UNLOCK_COST = 6, RAINBOW_COST = 20;
+const REWARD_ONTIME = 8, REWARD_LATE = 3, FIRST_OF_DAY_BONUS = 4;
+
+let pushTimer = null;
+function save() {
+  S.updatedAt = Date.now();
+  try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {}
+  clearTimeout(pushTimer);
+  pushTimer = setTimeout(pushRemote, 1200); // 防抖：频繁操作后统一推送
+}
+// 局域网家庭服务器版：把数据推给电脑，全屋设备共享
+function pushRemote() {
+  if (location.protocol.indexOf("http") !== 0) return;
+  try {
+    fetch("/api/state", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(S) }).catch(() => {});
+  } catch (e) {}
+}
+const $ = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+
+/* ================= 音效 ================= */
+let actx = null;
+function beep(f, d = 0.12, type = "sine", v = 0.18, when = 0) {
+  if (!S.sound) return;
+  try {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    const t = actx.currentTime + when;
+    const o = actx.createOscillator(), g = actx.createGain();
+    o.type = type; o.frequency.value = f;
+    g.gain.setValueAtTime(v, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + d);
+    o.connect(g); g.connect(actx.destination);
+    o.start(t); o.stop(t + d + 0.05);
+  } catch (e) {}
+}
+const sTap   = () => beep(660, 0.06);
+const sOk    = () => { beep(523, .12); beep(659, .12, "sine", .18, .11); beep(784, .18, "sine", .18, .22); };
+const sWin   = () => [523, 659, 784, 1047].forEach((f, i) => beep(f, .16, "triangle", .22, i * .13));
+const sWarn  = () => { beep(880, .14, "square", .12); beep(880, .14, "square", .12, .22); };
+const sSad   = () => { beep(392, .25, "sine", .16); beep(311, .4, "sine", .16, .22); };
+const sUnlock= () => [784, 988, 1175, 1568].forEach((f, i) => beep(f, .12, "triangle", .2, i * .09));
+
+/* ================= 语音播报（系统TTS，离线可用） ================= */
+function speak(text) {
+  if (!S.sound) return;
+  try {
+    if (!("speechSynthesis" in window)) return;
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = "zh-CN"; u.rate = 1; u.pitch = 1.15;
+    const zh = speechSynthesis.getVoices().find(v => v.lang && v.lang.toLowerCase().indexOf("zh") === 0);
+    if (zh) u.voice = zh;
+    speechSynthesis.cancel();
+    speechSynthesis.speak(u);
+  } catch (e) {}
+}
+
+/* ================= 弹窗 / 提示 ================= */
+let toastTimer = null;
+function toast(msg) {
+  const t = $("#toast"); t.textContent = msg; t.classList.add("show");
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("show"), 2200);
+}
+function modal(title, body, buttons) {
+  const box = $("#modal-box");
+  box.innerHTML = `<h3>${title}</h3><p>${body}</p><div class="row"></div>`;
+  const row = box.querySelector(".row");
+  buttons.forEach(b => {
+    const el = document.createElement("button");
+    el.className = "btn-small" + (b.red ? " red" : "");
+    el.style.minHeight = "52px"; el.style.fontSize = "18px";
+    el.textContent = b.label;
+    el.onclick = () => { $("#modal-mask").classList.remove("show"); b.onClick && b.onClick(); };
+    row.appendChild(el);
+  });
+  $("#modal-mask").classList.add("show");
+}
+
+/* ================= 画画门禁：吃完饭才能画 ================= */
+function canDrawNow() {
+  if (challengeState() !== "none") return false; // 有挑战进行中/待确认 → 先吃饭
+  return S.lastMealDate === todayStr() || S.drawPassDate === todayStr();
+}
+function goDraw() { if (canDrawNow()) show("draw"); else show("drawlock"); }
+
+/* ================= 页面切换 ================= */
+function show(id) {
+  document.body.classList.toggle("drawing", id === "draw");
+  $$(".screen").forEach(s => s.classList.remove("active"));
+  $("#scr-" + id).classList.add("active");
+  if (id === "home") renderHome();
+  if (id === "draw") renderDraw();
+  if (id === "gallery") renderGallery();
+  if (id === "parent") renderParent();
+  if (id === "challenge") renderChallenge();
+  window.scrollTo(0, 0);
+}
+
+/* ================= 主页 ================= */
+function fmtDate(ts) { const d = new Date(ts); return (d.getMonth() + 1) + "月" + d.getDate() + "日 " + String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); }
+function todayStr() { const d = new Date(); return d.getFullYear() + "-" + (d.getMonth() + 1) + "-" + d.getDate(); }
+
+function challengeState() {
+  if (!S.active) return "none";
+  const remain = Math.round((S.active.startedAt + S.active.durSec * 1000 - Date.now()) / 1000);
+  return remain > 0 ? "running" : "timeout";
+}
+
+function renderHome() {
+  $("#hello-name").textContent = S.name;
+  $("#drops-home").textContent = S.drops;
+  $("#streak-home").textContent = S.streak;
+  $("#mission-desc").textContent = `在 ${S.mealMin} 分钟内吃完饭，就能赢 ${REWARD_ONTIME} 滴颜料哦！`;
+  const st = challengeState();
+  const btn = $("#btn-start"), status = $("#mission-status");
+  status.classList.add("hidden");
+  if (st === "running") {
+    btn.textContent = "继续挑战 ⏱️";
+    const remain = Math.round((S.active.startedAt + S.active.durSec * 1000 - Date.now()) / 1000);
+    status.textContent = `⏰ 挑战进行中，还剩 ${Math.ceil(remain / 60)} 分钟`;
+    status.classList.remove("hidden");
+  } else if (st === "timeout") {
+    btn.textContent = "时间到！请家长确认 ⏰";
+    status.textContent = "这次没赶上没关系，让爸爸妈妈确认一下也能拿鼓励颜料～";
+    status.classList.remove("hidden");
+  } else {
+    btn.textContent = "开始挑战！";
+  }
+}
+
+/* ================= 挑战计时 ================= */
+const RING_C = 2 * Math.PI * 120;
+$("#ring-fg").style.strokeDasharray = RING_C;
+
+function startChallenge() {
+  sOk();
+  speak(`${S.name}，吃饭大挑战开始！${S.mealMin}分钟内吃完，就能赢${REWARD_ONTIME}滴颜料，加油哦！`);
+  S.active = { startedAt: Date.now(), durSec: S.mealMin * 60, half: false, w5: false, w2: false };
+  lastPhase = "running";
+  save();
+  // 重置上一次挑战留下的界面状态
+  $("#bubble").className = "bubble";
+  $("#bubble").innerHTML = `要在 <b>${S.mealMin}</b> 分钟内吃完，就能赢颜料哦！加油！`;
+  $("#btn-finish").textContent = "我吃完啦！🎉";
+  $("#btn-finish").className = "btn-big green";
+  $("#bowl").textContent = "🍜";
+  $("#bowl").classList.remove("done");
+  $("#ring-time").style.color = "#5D4037";
+  $("#ring-fg").setAttribute("class", "ring-fg");
+  show("challenge");
+}
+
+function renderChallenge() {
+  const st = challengeState();
+  if (st === "none") { show("home"); return; }
+  if (st === "timeout") { renderTimeoutUI(); return; }
+  $("#bubble").className = "bubble";
+  $("#bubble").innerHTML = `要在 <b>${S.mealMin}</b> 分钟内吃完，就能赢颜料哦！加油！`;
+  tickChallenge();
+}
+
+function renderTimeoutUI() {
+  const r = $("#ring-fg");
+  r.style.strokeDashoffset = RING_C;
+  r.setAttribute("class", "ring-fg danger");
+  $("#ring-time").textContent = "00:00";
+  $("#ring-time").style.color = "#D84315";
+  $("#ring-sub").textContent = "时间到啦";
+  $("#bowl").textContent = "🍽️"; $("#bowl").classList.add("done");
+  $("#track-fill").style.width = "100%";
+  $("#cat").style.left = "100%";
+  const b = $("#bubble"); b.className = "bubble danger";
+  b.textContent = "这次没赶上也没关系！请爸爸妈妈确认一下，拿点鼓励颜料吧～";
+  $("#btn-finish").textContent = "请爸爸妈妈确认 🔐";
+  $("#btn-finish").className = "btn-big gray";
+}
+
+let lastPhase = "";
+function tickChallenge() {
+  if (!S.active) return;
+  const el = $("#ring-fg");
+  const onScreen = $("#scr-challenge").classList.contains("active");
+  const elapsed = (Date.now() - S.active.startedAt) / 1000;
+  const remain = Math.max(0, Math.round(S.active.durSec - elapsed));
+  const prog = Math.min(1, elapsed / S.active.durSec);
+
+  lastPhase = "running";
+  el.style.strokeDashoffset = RING_C * (1 - (1 - prog));
+  el.setAttribute("class", "ring-fg" + (remain <= 120 ? " danger" : remain <= 300 ? " warn" : ""));
+  $("#ring-time").textContent = String(Math.floor(remain / 60)).padStart(2, "0") + ":" + String(remain % 60).padStart(2, "0");
+  $("#ring-time").style.color = remain <= 120 ? "#D84315" : "#5D4037";
+  $("#ring-sub").textContent = prog < .1 ? "请开动吧！" : prog < .5 ? "慢慢吃，别急～" : "继续加油！";
+  $("#track-fill").style.width = (prog * 100).toFixed(1) + "%";
+  $("#cat").style.left = (prog * 100).toFixed(1) + "%";
+
+  // 里程碑提醒
+  if (!S.active.half && prog >= 0.5) { S.active.half = true; save(); if ($("#scr-challenge").classList.contains("active")) { $("#bubble").textContent = "吃过半啦！保持这个速度，稳稳的！💪"; sOk(); } speak("吃过半啦，好棒，继续加油！"); }
+  if (!S.active.w5 && remain <= 300 && remain > 0) { S.active.w5 = true; save(); const b = $("#bubble"); b.className = "bubble danger"; b.textContent = "⏰ 还有 5 分钟！小猫咪在终点等你哦～"; if ($("#scr-challenge").classList.contains("active")) sWarn(); speak("还有5分钟，加油吃完哦！"); }
+  if (!S.active.w2 && remain <= 120 && remain > 0) { S.active.w2 = true; save(); const b = $("#bubble"); b.className = "bubble danger"; b.textContent = "最后 2 分钟！冲鸭！！🐱💨"; if ($("#scr-challenge").classList.contains("active")) sWarn(); speak("最后2分钟，冲呀！"); }
+}
+
+setInterval(() => {
+  // 画画中如果挑战开始/待确认 → 自动请出来
+  if ($("#scr-draw").classList.contains("active") && !canDrawNow()) {
+    toast("🍚 先吃饭，才能画画哦！");
+    show("drawlock");
+  }
+  const st = challengeState();
+  if (st === "running") tickChallenge();
+  else if (st === "timeout" && lastPhase === "running") {
+    lastPhase = "timeout"; sSad();
+    speak("时间到啦，请爸爸妈妈确认一下吧");
+    if ($("#scr-challenge").classList.contains("active")) renderTimeoutUI();
+    else toast("⏰ 吃饭挑战时间到啦！");
+  }
+}, 1000);
+
+/* ================= 家长确认 ================= */
+let pinBuf = "";
+function askConfirm() {
+  pinPurpose = "meal"; pinFrom = "challenge";
+  pinBuf = ""; renderPinDots();
+  $("#pin-title").textContent = "🔐 请爸爸妈妈输入密码";
+  $("#pin-hint").textContent = "宝宝说吃完饭啦，请家长确认";
+  $("#pin-phase1").classList.remove("hidden");
+  $("#pin-phase2").classList.add("hidden");
+  show("pin");
+}
+function renderPinDots() {
+  $$("#pin-dots span").forEach((d, i) => d.classList.toggle("on", i < pinBuf.length));
+}
+
+let pinPurpose = "meal"; // "meal"=确认吃饭结果  "parent"=进入家长区
+let pinFrom = "home";    // 取消时返回哪里
+$$("#scr-pin .pin-pad button").forEach(b => b.addEventListener("click", () => {
+  const k = b.dataset.k;
+  if (k === "del") { pinBuf = pinBuf.slice(0, -1); beep(400, .05); }
+  else if (pinBuf.length < 4) { pinBuf += k; beep(700, .05); }
+  renderPinDots();
+  if (pinBuf.length === 4) {
+    setTimeout(() => {
+      if (pinBuf === S.pin) {
+        sOk(); pinBuf = "";
+        if (pinPurpose === "parent") { pinPurpose = "meal"; show("parent"); }
+        else if (pinPurpose === "grantpass") {
+          pinPurpose = "meal";
+          S.drawPassDate = todayStr(); save();
+          sUnlock(); confetti(); toast("🎨 特许成功，开画吧！");
+          show("draw");
+        }
+        else { $("#pin-phase1").classList.add("hidden"); $("#pin-phase2").classList.remove("hidden"); }
+      } else {
+        sSad(); $("#pin-dots").classList.add("shake"); toast("密码不对哦，再试试～");
+        setTimeout(() => $("#pin-dots").classList.remove("shake"), 400);
+        pinBuf = ""; renderPinDots();
+      }
+    }, 150);
+  }
+}));
+$("#btn-pin-cancel1").addEventListener("click", () => {
+  sTap(); pinPurpose = "meal";
+  if (pinFrom === "challenge" && challengeState() !== "none") show("challenge"); else show("home");
+});
+
+function confirmMeal(onTime) {
+  if (!$("#scr-pin").classList.contains("active")) return; // 防连点：确认页已关闭就不再发放
+  S.lastMealDate = todayStr(); // 完成确认 → 今天解锁画画
+  let gained = onTime ? REWARD_ONTIME : REWARD_LATE;
+  let bonus = 0;
+  if (onTime) {
+    const t = todayStr();
+    if (S.lastOnTime !== t) {
+      bonus = FIRST_OF_DAY_BONUS;
+      S.streak = (S.lastOnTime && S.lastOnTime === yesterdayStr()) ? S.streak + 1 : 1;
+      S.lastOnTime = t;
+    }
+  }
+  S.drops += gained + bonus;
+  const used = S.active ? Math.min(S.mealMin, Math.round((Date.now() - S.active.startedAt) / 60000)) : 0;
+  S.history.unshift({ t: Date.now(), onTime, used });
+  S.history = S.history.slice(0, 30);
+  S.active = null; lastPhase = ""; save();
+
+  $("#reward-emoji").textContent = onTime ? "🎉" : "💛";
+  $("#reward-title").textContent = onTime ? "挑战成功！" : "也很棒哦！";
+  $("#reward-gain").textContent = `+${gained + bonus} 💧` + (bonus ? `（含今日首胜 +${bonus}）` : "");
+  $("#reward-msg").textContent = onTime
+    ? `只用了 ${used} 分钟就吃完啦！颜料已到账，快去解锁新颜色画画吧～`
+    : "今天没赶上时间，不过坚持吃饭就是好孩子！下次和🐱比赛试试看～";
+  show("reward");
+  if (onTime) { sWin(); confetti(); speak(`挑战成功！获得${gained + bonus}滴颜料，快去画画吧！`); }
+  else { sOk(); speak("也很棒哦！下次争取按时吃完，加油！"); }
+}
+function yesterdayStr() { const d = new Date(Date.now() - 86400000); return d.getFullYear() + "-" + (d.getMonth() + 1) + "-" + d.getDate(); }
+
+/* ================= 撒花 ================= */
+function confetti() {
+  const c = $("#confetti"), ctx = c.getContext("2d");
+  c.width = innerWidth; c.height = innerHeight;
+  const colors = ["#F4511E", "#FFB300", "#66BB6A", "#42A5F5", "#EC407A", "#8E24AA"];
+  const ps = [];
+  for (let i = 0; i < 130; i++) ps.push({
+    x: Math.random() * c.width, y: -20 - Math.random() * c.height * .4,
+    vy: 2.4 + Math.random() * 3.4, vx: (Math.random() - .5) * 2.2,
+    s: 6 + Math.random() * 8, r: Math.random() * Math.PI, vr: (Math.random() - .5) * .25,
+    col: colors[i % colors.length]
+  });
+  const t0 = performance.now();
+  (function frame(t) {
+    ctx.clearRect(0, 0, c.width, c.height);
+    ps.forEach(p => { p.x += p.vx; p.y += p.vy; p.r += p.vr;
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.r);
+      ctx.fillStyle = p.col; ctx.fillRect(-p.s / 2, -p.s / 2, p.s, p.s * .6); ctx.restore(); });
+    if (t - t0 < 2800) requestAnimationFrame(frame);
+    else ctx.clearRect(0, 0, c.width, c.height);
+  })(t0);
+}
+
+/* ================= 画画 ================= */
+const pad = $("#pad"), pctx = pad.getContext("2d");
+let brush = { color: COLORS[0].hex, size: 10, rainbow: false, eraser: false, hue: 0 };
+let drawing = false, lastPt = null, lastRainbowHue = 0;
+let undoStack = [];
+
+function renderDraw() {
+  $("#drops-draw").textContent = S.drops;
+  renderPalette();
+  renderTemplates();
+}
+function renderPalette() {
+  const box = $("#palette"); box.innerHTML = "";
+  COLORS.forEach(c => {
+    const locked = !S.unlocked.includes(c.id);
+    const b = document.createElement("button");
+    b.className = "swatch" + (!brush.eraser && brush.color === c.hex ? " sel" : "") + (locked ? " lock" : "");
+    b.style.background = c.hex;
+    b.onclick = () => {
+      if (locked) return askUnlockColor(c);
+      sTap(); brush.color = c.hex; brush.rainbow = false; brush.eraser = false; renderPalette();
+    };
+    b.title = c.name;
+    box.appendChild(b);
+  });
+  const rb = document.createElement("button");
+  rb.className = "swatch rainbow" + (brush.rainbow ? " sel" : "") + (!S.unlocked.includes("rainbow") ? " lock" : "");
+  rb.onclick = () => {
+    if (!S.unlocked.includes("rainbow")) return askUnlockRainbow();
+    sTap(); brush.rainbow = true; brush.eraser = false; renderPalette();
+  };
+  rb.title = "彩虹笔";
+  box.appendChild(rb);
+}
+function askUnlockColor(c) {
+  if (S.unlocked.includes(c.id)) return;
+  if (S.drops < UNLOCK_COST) { sSad(); modal("颜料不够啦 💧", `解锁「${c.name}」需要 ${UNLOCK_COST} 滴颜料，你还差 ${UNLOCK_COST - S.drops} 滴。<br>快去完成<b>吃饭大挑战</b>赢颜料吧！🍚`, [{ label: "知道啦", red: false }]); return; }
+  modal(`解锁「${c.name}」？🎨`, `将使用 <b>${UNLOCK_COST}</b> 滴颜料，剩余 ${S.drops - UNLOCK_COST} 滴。`, [
+    { label: "解锁！", onClick: () => { if (S.unlocked.includes(c.id) || S.drops < UNLOCK_COST) return; S.drops -= UNLOCK_COST; S.unlocked.push(c.id); save(); sUnlock(); confetti(); toast(`🎉 「${c.name}」解锁成功！`); brush.color = c.hex; brush.rainbow = false; brush.eraser = false; renderDraw(); } },
+    { label: "再想想", red: false }
+  ]);
+}
+function askUnlockRainbow() {
+  if (S.unlocked.includes("rainbow")) return;
+  if (S.drops < RAINBOW_COST) { sSad(); modal("颜料不够啦 💧", `解锁🌈彩虹画笔需要 <b>${RAINBOW_COST}</b> 滴颜料，你还差 ${RAINBOW_COST - S.drops} 滴。<br>按时吃饭就能赚到哦！`, [{ label: "知道啦", red: false }]); return; }
+  modal("解锁🌈彩虹画笔？", `会变色的神奇画笔！将使用 <b>${RAINBOW_COST}</b> 滴颜料，剩余 ${S.drops - RAINBOW_COST} 滴。`, [
+    { label: "解锁！", onClick: () => { if (S.unlocked.includes("rainbow") || S.drops < RAINBOW_COST) return; S.drops -= RAINBOW_COST; S.unlocked.push("rainbow"); save(); sUnlock(); confetti(); toast("🎉 彩虹画笔到手！"); brush.rainbow = true; brush.eraser = false; renderDraw(); } },
+    { label: "再想想", red: false }
+  ]);
+}
+function padXY(e) {
+  const r = pad.getBoundingClientRect();
+  return { x: (e.clientX - r.left) * (pad.width / r.width), y: (e.clientY - r.top) * (pad.height / r.height) };
+}
+function clearPad() { pctx.clearRect(0, 0, pad.width, pad.height); undoStack = []; }
+clearPad();
+
+pad.addEventListener("pointerdown", e => {
+  e.preventDefault();
+  drawing = true; try { pad.setPointerCapture(e.pointerId); } catch (err) {}
+  pushUndo();
+  lastPt = padXY(e);
+  if (brush.rainbow) lastRainbowHue = brush.hue;
+  strokeTo(lastPt, lastPt);
+});
+pad.addEventListener("pointermove", e => {
+  if (!drawing) return;
+  e.preventDefault();
+  strokeTo(lastPt, padXY(e));
+});
+pad.addEventListener("pointerup", () => { drawing = false; lastPt = null; saveDraft(); });
+pad.addEventListener("pointercancel", () => { drawing = false; lastPt = null; saveDraft(); });
+
+function strokeTo(a, b) {
+  if (brush.eraser) { pctx.globalCompositeOperation = "destination-out"; pctx.strokeStyle = "rgba(0,0,0,1)"; pctx.lineWidth = brush.size * 3; }
+  else {
+    pctx.globalCompositeOperation = "source-over";
+    if (brush.rainbow) {
+      const dist = Math.hypot(b.x - a.x, b.y - a.y);
+      lastRainbowHue = (lastRainbowHue + dist * 0.6) % 360;
+      brush.hue = lastRainbowHue;
+      pctx.strokeStyle = `hsl(${lastRainbowHue}, 85%, 55%)`;
+      pctx.lineWidth = brush.size;
+    } else { pctx.strokeStyle = brush.color; pctx.lineWidth = brush.size; }
+  }
+  pctx.lineCap = "round"; pctx.lineJoin = "round";
+  pctx.beginPath(); pctx.moveTo(a.x, a.y); pctx.lineTo(b.x, b.y); pctx.stroke();
+  lastPt = b;
+}
+function pushUndo() {
+  try {
+    undoStack.push(pctx.getImageData(0, 0, pad.width, pad.height));
+    if (undoStack.length > 5) undoStack.shift();
+  } catch (e) {}
+}
+
+/* ================= 草稿自动保存（随同步上云） ================= */
+let draftTimer = null;
+function isCanvasEmpty() {
+  const d = pctx.getImageData(0, 0, 720, 720).data;
+  for (let i = 3; i < d.length; i += 4) if (d[i] > 0) return false;
+  return true;
+}
+function flushDraftNow() {
+  try {
+    if (isCanvasEmpty()) { if (S.draft) { S.draft = null; save(); } return; }
+    S.draft = { png: pad.toDataURL("image/png"), t: Date.now() }; // 只存笔画（透明底），拓印层不含在内
+    save();
+  } catch (e) {}
+}
+function saveDraft() { clearTimeout(draftTimer); draftTimer = setTimeout(flushDraftNow, 2000); }
+function restoreDraftIfAny() {
+  if (S.draft && S.draft.png && isCanvasEmpty()) {
+    const im = new Image();
+    im.onload = () => { if (isCanvasEmpty()) { pctx.drawImage(im, 0, 0); toast("🎨 已恢复上次画到一半的作品"); } };
+    im.src = S.draft.png;
+  }
+}
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flushDraftNow(); });
+window.addEventListener("beforeunload", flushDraftNow);
+
+/* ================= 拓印模板 ================= */
+const uctx = $("#pad-under").getContext("2d");
+const TPL_COST = 8;
+let TPL_STYLE = { lw: 6, color: "#CFC7DB" };
+function tSet(ctx) { ctx.strokeStyle = TPL_STYLE.color; ctx.lineWidth = TPL_STYLE.lw; ctx.lineCap = "round"; ctx.lineJoin = "round"; }
+function tC(ctx, x, y, r) { tSet(ctx); ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.stroke(); }
+function tE(ctx, x, y, rx, ry, rot = 0) { tSet(ctx); ctx.beginPath(); ctx.ellipse(x, y, rx, ry, rot, 0, 7); ctx.stroke(); }
+function tA(ctx, x, y, r, a1, a2) { tSet(ctx); ctx.beginPath(); ctx.arc(x, y, r, a1, a2); ctx.stroke(); }
+function tL(ctx, pts, close = false) { tSet(ctx); ctx.beginPath(); pts.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); if (close) ctx.closePath(); ctx.stroke(); }
+function tB(ctx, pts) { tSet(ctx); ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i += 3) ctx.bezierCurveTo(pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1], pts[i + 2][0], pts[i + 2][1]); ctx.stroke(); }
+function tR(ctx, pts, close = false) {
+  tSet(ctx); ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
+  for (let i = 1; i < pts.length - 1; i++) { const mx = (pts[i][0] + pts[i + 1][0]) / 2, my = (pts[i][1] + pts[i + 1][1]) / 2; ctx.quadraticCurveTo(pts[i][0], pts[i][1], mx, my); }
+  const L = pts[pts.length - 1]; ctx.lineTo(L[0], L[1]); if (close) ctx.closePath(); ctx.stroke();
+}
+
+function tBunny(ctx) {
+  tE(ctx, 272, 172, 55, 148, -0.18); tE(ctx, 448, 172, 55, 148, 0.18);
+  tE(ctx, 272, 190, 26, 92, -0.18); tE(ctx, 448, 190, 26, 92, 0.18);
+  tC(ctx, 360, 405, 168);
+  tC(ctx, 302, 395, 10); tC(ctx, 418, 395, 10);
+  tL(ctx, [[348, 428], [372, 428], [360, 443]], true);
+  tA(ctx, 347, 450, 12, 0.3, 2.84); tA(ctx, 373, 450, 12, 0.3, 2.84);
+  tC(ctx, 255, 450, 20); tC(ctx, 465, 450, 20);
+  tE(ctx, 360, 655, 185, 100);
+  tE(ctx, 300, 692, 45, 24); tE(ctx, 420, 692, 45, 24);
+}
+function tKitty(ctx) {
+  tR(ctx, [[238, 275], [256, 130], [352, 232]], true);
+  tR(ctx, [[482, 275], [464, 130], [368, 232]], true);
+  tR(ctx, [[262, 248], [272, 168], [330, 226]], true);
+  tR(ctx, [[458, 248], [448, 168], [390, 226]], true);
+  tC(ctx, 360, 390, 162);
+  tC(ctx, 302, 380, 10); tC(ctx, 418, 380, 10);
+  tL(ctx, [[350, 408], [370, 408], [360, 421]], true);
+  tA(ctx, 346, 427, 12, 0.3, 2.84); tA(ctx, 374, 427, 12, 0.3, 2.84);
+  tL(ctx, [[196, 370], [115, 355]]); tL(ctx, [[192, 396], [110, 398]]); tL(ctx, [[196, 422], [118, 440]]);
+  tL(ctx, [[524, 370], [605, 355]]); tL(ctx, [[528, 396], [610, 398]]); tL(ctx, [[524, 422], [602, 440]]);
+  tC(ctx, 268, 440, 16); tC(ctx, 452, 440, 16);
+  tE(ctx, 360, 650, 190, 105);
+  tE(ctx, 300, 692, 45, 24); tE(ctx, 420, 692, 45, 24);
+  tB(ctx, [[548, 682], [655, 658], [668, 545], [592, 522]]);
+}
+function tBear(ctx) {
+  tC(ctx, 243, 245, 60); tC(ctx, 477, 245, 60);
+  tC(ctx, 243, 245, 30); tC(ctx, 477, 245, 30);
+  tC(ctx, 360, 380, 168);
+  tC(ctx, 296, 360, 10); tC(ctx, 424, 360, 10);
+  tE(ctx, 360, 448, 88, 64);
+  tL(ctx, [[342, 424], [378, 424], [360, 443]], true);
+  tL(ctx, [[360, 443], [360, 460]]);
+  tA(ctx, 360, 460, 22, 0.4, 2.74);
+  tE(ctx, 360, 650, 205, 115);
+  tE(ctx, 360, 662, 115, 68);
+}
+function tFrog(ctx) {
+  tC(ctx, 242, 218, 78); tC(ctx, 478, 218, 78);
+  tC(ctx, 242, 222, 34); tC(ctx, 478, 222, 34);
+  tC(ctx, 242, 226, 13); tC(ctx, 478, 226, 13);
+  tE(ctx, 360, 440, 235, 185);
+  tA(ctx, 360, 395, 120, 0.5, 2.64);
+  tC(ctx, 333, 300, 7); tC(ctx, 387, 300, 7);
+  tC(ctx, 215, 460, 22); tC(ctx, 505, 460, 22);
+}
+function tDino(ctx) {
+  tB(ctx, [
+    [655, 468],
+    [600, 330], [490, 250], [400, 258],
+    [355, 262], [320, 245], [295, 215],
+    [278, 175], [245, 148], [205, 152],
+    [160, 156], [135, 190], [136, 228],
+    [137, 262], [155, 290], [190, 296],
+    [215, 300], [235, 292], [244, 276],
+    [268, 310], [276, 350], [274, 470],
+  ]);
+  tR(ctx, [[274, 470], [270, 588], [278, 602], [338, 602], [336, 500]]);
+  tB(ctx, [[336, 500], [372, 512], [404, 512], [434, 500]]);
+  tR(ctx, [[434, 500], [432, 588], [440, 602], [502, 602], [498, 520]]);
+  tB(ctx, [[498, 520], [560, 510], [630, 500], [655, 468]]);
+  tC(ctx, 198, 220, 11);
+  tC(ctx, 156, 238, 5);
+  tA(ctx, 185, 262, 18, 0.4, 2.6);
+}
+function tUnicorn(ctx) {
+  tE(ctx, 270, 262, 32, 58, -0.35); tE(ctx, 450, 262, 32, 58, 0.35);
+  tL(ctx, [[322, 255], [360, 92], [398, 255]], true);
+  tL(ctx, [[333, 210], [387, 207]]); tL(ctx, [[344, 160], [376, 158]]); tL(ctx, [[352, 120], [368, 119]]);
+  tC(ctx, 360, 400, 160);
+  tC(ctx, 308, 395, 10); tC(ctx, 412, 395, 10);
+  tC(ctx, 338, 458, 6); tC(ctx, 382, 458, 6);
+  tA(ctx, 360, 452, 30, 0.4, 2.74);
+  tC(ctx, 250, 445, 18); tC(ctx, 470, 445, 18);
+}
+function tFlower(ctx) {
+  for (let i = 0; i < 6; i++) {
+    const a = i * Math.PI / 3;
+    tE(ctx, 360 + 138 * Math.cos(a), 330 + 138 * Math.sin(a), 88, 52, a);
+  }
+  tC(ctx, 360, 330, 68);
+  tC(ctx, 338, 322, 8); tC(ctx, 382, 322, 8);
+  tA(ctx, 360, 332, 22, 0.4, 2.74);
+  tB(ctx, [[360, 398], [350, 480], [370, 560], [360, 645]]);
+  tE(ctx, 296, 560, 60, 26, -0.5); tE(ctx, 424, 600, 60, 26, 0.5);
+}
+function tButterfly(ctx) {
+  tE(ctx, 230, 345, 112, 92, -0.35); tE(ctx, 490, 345, 112, 92, 0.35);
+  tE(ctx, 262, 520, 78, 64, 0.3); tE(ctx, 458, 520, 78, 64, -0.3);
+  tC(ctx, 215, 340, 24); tC(ctx, 505, 340, 24); tC(ctx, 258, 522, 18); tC(ctx, 462, 522, 18);
+  tE(ctx, 360, 420, 30, 88);
+  tC(ctx, 360, 296, 30);
+  tB(ctx, [[348, 272], [330, 235], [322, 212], [310, 198]]); tC(ctx, 310, 198, 8);
+  tB(ctx, [[372, 272], [390, 235], [398, 212], [410, 198]]); tC(ctx, 410, 198, 8);
+}
+
+const TPL = [
+  { id: "free", name: "自由画", draw: null },
+  { id: "bunny", name: "小兔", draw: tBunny },
+  { id: "kitty", name: "小猫", draw: tKitty },
+  { id: "bear", name: "小熊", draw: tBear },
+  { id: "frog", name: "青蛙", draw: tFrog },
+  { id: "dino", name: "小恐龙", draw: tDino },
+  { id: "unicorn", name: "独角兽", draw: tUnicorn },
+  { id: "flower", name: "小花", draw: tFlower },
+  { id: "butterfly", name: "蝴蝶", draw: tButterfly },
+];
+function tplLocked(t) { return !!S.tplLocks[t.id] && !S.unlockedTpl.includes(t.id); }
+function tplEntries() {
+  const list = TPL.slice();
+  (S.customTpls || []).forEach(ct => list.push({ id: ct.id, name: ct.name, draw: null, custom: true }));
+  return list;
+}
+function renderTemplates() {
+  const list = $("#tpl-list"); list.innerHTML = "";
+  tplEntries().forEach(t => {
+    const locked = tplLocked(t);
+    const b = document.createElement("button");
+    b.className = "tpl-btn" + (S.tpl === t.id ? " sel" : "");
+    const c = document.createElement("canvas"); c.width = 140; c.height = 140;
+    const cc = c.getContext("2d");
+    cc.fillStyle = "#fff"; cc.fillRect(0, 0, 140, 140);
+    if (t.custom) {
+      const ct = (S.customTpls || []).find(x => x.id === t.id);
+      if (ct) { const im = new Image(); im.onload = () => cc.drawImage(im, 0, 0, 140, 140); im.src = ct.png; }
+    } else if (t.draw) {
+      cc.save(); cc.scale(140 / 720, 140 / 720);
+      TPL_STYLE = { lw: 26, color: "#B7AFC6" };
+      t.draw(cc); cc.restore();
+    } else {
+      cc.font = "58px sans-serif"; cc.textAlign = "center"; cc.textBaseline = "middle";
+      cc.fillText("✋", 70, 74);
+    }
+    b.appendChild(c);
+    const n = document.createElement("span"); n.className = "tpl-name"; n.textContent = t.name; b.appendChild(n);
+    if (locked) { const lk = document.createElement("span"); lk.className = "tpl-lock"; lk.textContent = "🔒"; b.appendChild(lk); }
+    b.onclick = () => selectTpl(t);
+    list.appendChild(b);
+  });
+}
+function selectTpl(t) {
+  if (tplLocked(t)) {
+    if (S.drops < TPL_COST) { sSad(); modal("颜料不够啦 💧", `解锁「${t.name}」拓印需要 <b>${TPL_COST}</b> 滴颜料，你还差 ${TPL_COST - S.drops} 滴。<br>快去完成<b>吃饭大挑战</b>赢颜料吧！🍚`, [{ label: "知道啦", red: false }]); return; }
+    modal(`解锁「${t.name}」拓印？`, `将使用 <b>${TPL_COST}</b> 滴颜料，剩余 ${S.drops - TPL_COST} 滴。`, [
+      { label: "解锁！", onClick: () => { if (!tplLocked(t) || S.drops < TPL_COST) return; S.drops -= TPL_COST; S.unlockedTpl.push(t.id); save(); sUnlock(); confetti(); toast(`🎉 「${t.name}」拓印解锁成功！`); applyTpl(t); renderDraw(); } },
+      { label: "再想想", red: false }
+    ]);
+    return;
+  }
+  sTap(); applyTpl(t);
+}
+function applyTpl(t) {
+  S.tpl = t.id; save();
+  drawTemplate(); renderTemplates();
+  if (t.id === "free") toast("自由画模式！");
+  else toast(`照着浅色的「${t.name}」线描一描吧！`);
+}
+function drawTemplate() {
+  uctx.clearRect(0, 0, 720, 720);
+  if (S.tpl && S.tpl.indexOf("cu_") === 0) {
+    const ct = (S.customTpls || []).find(x => x.id === S.tpl);
+    if (!ct) return;
+    const img = new Image();
+    img.onload = () => uctx.drawImage(img, 0, 0);
+    img.src = ct.png;
+    return;
+  }
+  const t = TPL.find(x => x.id === S.tpl);
+  if (!t || !t.draw) return;
+  TPL_STYLE = { lw: 6, color: "#CFC7DB" };
+  t.draw(uctx);
+}
+
+/* ================= 导入图片生成拓印 ================= */
+function processImport(img, mode) {
+  const c = document.createElement("canvas"); c.width = 720; c.height = 720;
+  const x = c.getContext("2d");
+  x.fillStyle = "#fff"; x.fillRect(0, 0, 720, 720);
+  const s = Math.min(650 / img.width, 650 / img.height);
+  const w = Math.round(img.width * s), h = Math.round(img.height * s);
+  x.drawImage(img, (720 - w) / 2, (720 - h) / 2, w, h);
+  const id = x.getImageData(0, 0, 720, 720);
+  const g = new Float32Array(720 * 720);
+  for (let i = 0; i < g.length; i++) { const j = i * 4; g[i] = 0.299 * id.data[j] + 0.587 * id.data[j + 1] + 0.114 * id.data[j + 2]; }
+  if (mode === "edges") {
+    // Sobel 提取轮廓线：白底 + 浅灰线条
+    const out = x.createImageData(720, 720);
+    for (let i = 0; i < g.length; i++) { const j = i * 4; out.data[j] = out.data[j + 1] = out.data[j + 2] = 255; out.data[j + 3] = 255; }
+    for (let yy = 2; yy < 718; yy++) for (let xx = 2; xx < 718; xx++) {
+      const i = yy * 720 + xx;
+      const gx = g[i - 721] + 2 * g[i - 1] + g[i + 719] - g[i - 719] - 2 * g[i + 1] - g[i + 721];
+      const gy = g[i - 721] + 2 * g[i - 720] + g[i - 719] - g[i - 719] - 2 * g[i + 720] - g[i + 721];
+      if (Math.hypot(gx, gy) > 70) { const j = i * 4; out.data[j] = out.data[j + 1] = out.data[j + 2] = 130; }
+    }
+    x.putImageData(out, 0, 0);
+  } else {
+    // 描红模式：深色变浅灰、白色保持白
+    for (let i = 0; i < g.length; i++) {
+      const j = i * 4, v = g[i];
+      const t = Math.max(0, Math.min(1, (v - 90) / 120));
+      const col = Math.round(255 - 52 * (1 - t));
+      id.data[j] = id.data[j + 1] = id.data[j + 2] = col;
+    }
+    x.putImageData(id, 0, 0);
+  }
+  return c;
+}
+function showImportChoice(img) {
+  const c1 = processImport(img, "faint"), c2 = processImport(img, "edges");
+  const defName = "导入" + (S.customTpls.length + 1);
+  const box = $("#modal-box");
+  box.innerHTML = `<h3>选择拓印效果</h3>
+    <p style="font-size:14px;margin-bottom:10px">左：整张图变浅描红（适合线稿/涂色书照片）<br>右：只留轮廓线（适合普通图片）</p>
+    <div style="display:flex;gap:10px">
+      <div style="flex:1"><canvas id="imp-a" width="300" height="300" style="width:100%;border:4px solid #E1BEE7;border-radius:14px"></canvas><div style="text-align:center;font-size:13px;color:#8D6E63;margin-top:4px">描红</div></div>
+      <div style="flex:1"><canvas id="imp-b" width="300" height="300" style="width:100%;border:4px solid #E1BEE7;border-radius:14px"></canvas><div style="text-align:center;font-size:13px;color:#8D6E63;margin-top:4px">轮廓</div></div>
+    </div>
+    <p style="font-size:14px;color:#8D6E63;margin:12px 0 6px">✏️ 给这个拓印起个名字：</p>
+    <input type="text" id="imp-name" maxlength="8" value="${defName}">
+    <div class="row"><button class="btn-small" id="imp-cancel">🔄 重新选图</button></div>`;
+  document.getElementById("imp-a").getContext("2d").drawImage(c1, 0, 0, 300, 300);
+  document.getElementById("imp-b").getContext("2d").drawImage(c2, 0, 0, 300, 300);
+  const cleanName = () => (document.getElementById("imp-name").value.trim().replace(/[<>"'&]/g, "").slice(0, 8)) || defName;
+  let importDone = false;
+  const use = (c720) => {
+    if (importDone) return; importDone = true;
+    if (S.customTpls.length >= 12) { $("#modal-mask").classList.remove("show"); sSad(); toast("最多导入 12 个，请家长在管理里删掉一些吧"); return; }
+    const entry = { id: "cu_" + Date.now(), name: cleanName(), png: c720.toDataURL("image/png") };
+    S.customTpls.push(entry);
+    try { localStorage.setItem(KEY, JSON.stringify(S)); }
+    catch (err) { S.customTpls.pop(); $("#modal-mask").classList.remove("show"); sSad(); toast("图片太大存不下，换张小图试试～"); return; }
+    S.tpl = entry.id; save();
+    sUnlock(); $("#modal-mask").classList.remove("show");
+    drawTemplate(); renderDraw();
+    toast(`已加入「${entry.name}」拓印！`);
+  };
+  document.getElementById("imp-a").onclick = () => use(c1);
+  document.getElementById("imp-b").onclick = () => use(c2);
+  document.getElementById("imp-cancel").onclick = () => { $("#modal-mask").classList.remove("show"); $("#tpl-file").click(); };
+  $("#modal-mask").classList.add("show");
+}
+$("#btn-import").addEventListener("click", () => $("#tpl-file").click());
+$("#tpl-file").addEventListener("change", e => {
+  const f = e.target.files[0];
+  e.target.value = "";
+  if (!f) return;
+  const rd = new FileReader();
+  rd.onload = () => {
+    const img = new Image();
+    img.onload = () => showImportChoice(img);
+    img.onerror = () => { sSad(); toast("这张图片读不出来，换一张试试～"); };
+    img.src = rd.result;
+  };
+  rd.readAsDataURL(f);
+});
+$$("#scr-draw .size-btn").forEach(b => b.addEventListener("click", () => {
+  sTap(); brush.size = +b.dataset.s; brush.eraser = false;
+  $$("#scr-draw .size-btn").forEach(x => x.classList.toggle("sel", x === b));
+  renderPalette();
+}));
+$("#btn-eraser").addEventListener("click", () => { sTap(); brush.eraser = true; renderPalette(); });
+$("#btn-undo").addEventListener("click", () => {
+  sTap();
+  const im = undoStack.pop();
+  if (im) pctx.putImageData(im, 0, 0); else toast("没有可以撤销的啦～");
+  saveDraft();
+});
+$("#btn-clear").addEventListener("click", () => {
+  modal("重新画一张？", "现在这张画会被擦掉哦，确定吗？", [
+    { label: "确定重画", red: true, onClick: () => { clearPad(); S.draft = null; save(); sOk(); } },
+    { label: "先不", red: false }
+  ]);
+});
+let saveBusy = false;
+$("#btn-save").addEventListener("click", () => {
+  if (saveBusy) return; saveBusy = true;
+  setTimeout(() => { saveBusy = false; }, 800);
+  const out = document.createElement("canvas");
+  const scale = 360 / pad.width;
+  out.width = 360; out.height = Math.round(pad.height * scale);
+  const octx = out.getContext("2d");
+  octx.fillStyle = "#fff"; octx.fillRect(0, 0, out.width, out.height);
+  octx.drawImage(pad, 0, 0, out.width, out.height);
+  S.drawings.unshift({ d: out.toDataURL("image/jpeg", 0.75), t: Date.now() });
+  if (S.drawings.length > 12) { S.drawings.pop(); toast("画廊最多放 12 幅，最早的收进小抽屉啦"); }
+  save(); sUnlock(); flushDraftNow(); toast("💾 已经挂到画廊里啦！还能点「继续画」接着画～");
+  show("gallery");
+});
+
+/* ================= 画廊 ================= */
+function renderGallery() {
+  const g = $("#gallery-grid"); g.innerHTML = "";
+  $("#gallery-empty").style.display = S.drawings.length ? "none" : "block";
+  S.drawings.forEach((d, i) => {
+    const el = document.createElement("div");
+    el.className = "art";
+    const dt = new Date(d.t);
+    el.innerHTML = `<img src="${d.d}" alt="作品"><div class="date">${dt.getMonth() + 1}月${dt.getDate()}日</div><button class="btn-small cont">🎨 继续画</button><button class="del">✕</button>`;
+    el.querySelector(".cont").onclick = () => {
+      if (!canDrawNow()) { show("drawlock"); return; } // 画画门禁同样适用
+      const im = new Image();
+      im.onload = () => {
+        const tmp = document.createElement("canvas"); tmp.width = 720; tmp.height = 720;
+        const tc = tmp.getContext("2d");
+        tc.drawImage(im, 0, 0, 720, 720);
+        // 白色背景转透明：让拓印层和橡皮擦继续可用
+        const id = tc.getImageData(0, 0, 720, 720);
+        const px = id.data;
+        for (let i = 0; i < px.length; i += 4) {
+          const dist = Math.max(255 - px[i], 255 - px[i + 1], 255 - px[i + 2]);
+          px[i + 3] = Math.min(255, dist * 2.4);
+        }
+        tc.putImageData(id, 0, 0);
+        pctx.clearRect(0, 0, 720, 720);
+        pctx.drawImage(tmp, 0, 0);
+        undoStack = [];
+        S.draft = { png: tmp.toDataURL("image/png"), t: Date.now() };
+        save();
+        show("draw");
+        toast("继续画这幅吧！画好再点「存入画廊」～");
+      };
+      im.src = d.d;
+    };
+    el.querySelector(".del").onclick = () => {
+      modal("取下这幅画？", "取下后就不能在画廊里看到它啦。", [
+        { label: "取下", red: true, onClick: () => { S.drawings.splice(i, 1); save(); sTap(); renderGallery(); } },
+        { label: "留着", red: false }
+      ]);
+    };
+    el.querySelector("img").onclick = () => {
+      modal("🖼️ 大图欣赏", `<img src="${d.d}" style="width:100%;border-radius:14px">`, [{ label: "真棒！", red: false }]);
+    };
+    g.appendChild(el);
+  });
+}
+
+/* ================= 家长区 ================= */
+/* ================= 模板管理（家长） ================= */
+function renderTplManage() {
+  const box = $("#tpl-manage"); box.innerHTML = "";
+  tplEntries().forEach(t => {
+    const locked = tplLocked(t);
+    const el = document.createElement("div");
+    el.className = "mg-item" + (locked ? " locked" : "");
+    const c = document.createElement("canvas"); c.width = 140; c.height = 140;
+    const cc = c.getContext("2d");
+    cc.fillStyle = "#fff"; cc.fillRect(0, 0, 140, 140);
+    if (t.custom) {
+      const ct = (S.customTpls || []).find(x => x.id === t.id);
+      if (ct) { const im = new Image(); im.onload = () => cc.drawImage(im, 0, 0, 140, 140); im.src = ct.png; }
+    } else if (t.draw) {
+      cc.save(); cc.scale(140 / 720, 140 / 720);
+      TPL_STYLE = { lw: 26, color: "#B7AFC6" };
+      t.draw(cc); cc.restore();
+    } else {
+      cc.font = "58px sans-serif"; cc.textAlign = "center"; cc.textBaseline = "middle";
+      cc.fillText("✋", 70, 74);
+    }
+    const nm = document.createElement("div"); nm.className = "nm"; nm.textContent = t.name + (locked ? " 🔒" : "");
+    const lockBtn = document.createElement("button");
+    lockBtn.className = "btn-small";
+    lockBtn.textContent = locked ? "🔓 解除上锁" : "🔒 上锁";
+    lockBtn.onclick = () => {
+      if (locked) { S.tplLocks[t.id] = false; toast(`「${t.name}」已免费开放`); }
+      else { S.tplLocks[t.id] = true; S.unlockedTpl = S.unlockedTpl.filter(x => x !== t.id); toast(`「${t.name}」已上锁，需 8 滴颜料解锁`); }
+      save(); sTap(); renderTplManage(); renderDraw();
+    };
+    el.appendChild(c); el.appendChild(nm); el.appendChild(lockBtn);
+    if (t.custom) {
+      const ren = document.createElement("button");
+      ren.className = "btn-small";
+      ren.textContent = "✏️ 改名";
+      ren.onclick = () => {
+        const ct = S.customTpls.find(x => x.id === t.id);
+        if (!ct) return;
+        const box = $("#modal-box");
+        box.innerHTML = `<h3>给拓印改名</h3>
+          <input type="text" id="ren-in" maxlength="8" value="${ct.name.replace(/[<>"'&]/g, "")}">
+          <div class="row"><button class="btn-small" id="ren-ok">确定</button><button class="btn-small red" id="ren-no">算了</button></div>`;
+        $("#modal-mask").classList.add("show");
+        document.getElementById("ren-ok").onclick = () => {
+          const v = document.getElementById("ren-in").value.trim().replace(/[<>"'&]/g, "").slice(0, 8);
+          if (v) { ct.name = v; save(); renderTplManage(); renderDraw(); sOk(); toast("已改名～"); }
+          $("#modal-mask").classList.remove("show");
+        };
+        document.getElementById("ren-no").onclick = () => $("#modal-mask").classList.remove("show");
+      };
+      el.appendChild(ren);
+      const del = document.createElement("button");
+      del.className = "btn-small red";
+      del.textContent = "🗑️ 删除";
+      del.onclick = () => modal(`删除「${t.name}」？`, "删除后无法恢复哦。", [
+        { label: "删除", red: true, onClick: () => { S.customTpls = S.customTpls.filter(x => x.id !== t.id); if (S.tpl === t.id) { S.tpl = "free"; drawTemplate(); } save(); sTap(); renderTplManage(); renderDraw(); toast("已删除"); } },
+        { label: "留着", red: false }
+      ]);
+      el.appendChild(del);
+    }
+    box.appendChild(el);
+  });
+}
+
+function renderParent() {
+  $("#in-name").value = S.name;
+  $("#min-val").textContent = S.mealMin;
+  $("#in-pin").value = S.pin;
+  $("#sw-sound").classList.toggle("on", S.sound);
+  renderTplManage();
+  const log = $("#log");
+  if (!S.history.length) { log.innerHTML = "还没有记录，快开始第一次挑战吧！"; }
+  else {
+    log.innerHTML = S.history.slice(0, 10).map(h =>
+      `<div>${fmtDate(h.t)} — ${h.onTime ? '<span class="ok">✅ 按时</span>' : '<span class="late">⏰ 超时</span>'}（用时约 ${h.used} 分钟）</div>`
+    ).join("");
+  }
+  const st = challengeState();
+  $("#btn-cancel-ch").style.display = st === "none" ? "none" : "inline-block";
+}
+$("#min-minus").onclick = () => { const v = Math.max(5, +$("#min-val").textContent - 5); $("#min-val").textContent = v; sTap(); };
+$("#min-plus").onclick = () => { const v = Math.min(120, +$("#min-val").textContent + 5); $("#min-val").textContent = v; sTap(); };
+$("#sw-sound").onclick = () => { $("#sw-sound").classList.toggle("on"); sTap(); };
+$("#btn-save-cfg").onclick = () => {
+  const name = $("#in-name").value.trim();
+  const pin = $("#in-pin").value.trim();
+  if (pin && !/^\d{4}$/.test(pin)) { sSad(); toast("密码需要 4 位数字哦"); return; }
+  if (name) S.name = name;
+  S.mealMin = +$("#min-val").textContent;
+  if (pin) S.pin = pin;
+  S.sound = $("#sw-sound").classList.contains("on");
+  save(); sOk(); toast("✅ 设置已保存");
+};
+$("#btn-cancel-ch").onclick = () => {
+  modal("取消当前挑战？", "这次挑战不计奖励哦。", [
+    { label: "取消挑战", red: true, onClick: () => { S.active = null; lastPhase = ""; save(); sTap(); renderParent(); toast("已取消"); } },
+    { label: "继续挑战", red: false }
+  ]);
+};
+$("#btn-reset").onclick = () => {
+  modal("清空全部数据？", "颜料、画作、记录都会被清空，无法恢复！确定吗？", [
+    { label: "全部清空", red: true, onClick: () => {
+      modal("再确认一次", "真的要清空吗？建议先截图留念哦。", [
+        { label: "确定清空", red: true, onClick: () => { localStorage.removeItem(KEY); S = Object.assign({}, DEF, { unlocked: DEF.unlocked.slice(), history: [], drawings: [] }); clearPad(); save(); show("home"); toast("已重置"); } },
+        { label: "算了", red: false }
+      ]);
+    } },
+    { label: "不清了", red: false }
+  ]);
+};
+
+/* ================= 事件绑定 ================= */
+$("#btn-start").onclick = () => { sTap(); if (challengeState() === "timeout") askConfirm(); else if (challengeState() === "running") show("challenge"); else startChallenge(); };
+$("#btn-finish").onclick = () => { sTap(); askConfirm(); };
+$("#btn-ch-home").onclick = () => { sTap(); show("home"); };
+$("#btn-ontime").onclick = () => confirmMeal(true);
+$("#btn-late").onclick = () => confirmMeal(false);
+$("#btn-pin-cancel").onclick = () => { sTap(); show("challenge"); };
+$("#btn-reward-draw").onclick = () => goDraw();
+$("#btn-reward-home").onclick = () => show("home");
+$("#btn-go-draw").onclick = () => goDraw();
+$("#btn-dl-eat").onclick = () => { sTap(); if (challengeState() === "none") startChallenge(); else show("challenge"); };
+$("#btn-dl-pass").onclick = () => { sTap(); askGrantPass(); };
+$("#btn-dl-home").onclick = () => show("home");
+$("#btn-go-gallery").onclick = () => show("gallery");
+$("#btn-draw-back").onclick = () => show("home");
+$("#btn-gallery-back").onclick = () => show("home");
+$("#btn-parent").onclick = () => askConfirmParent();
+$("#btn-tpl-manage").onclick = () => { sTap(); askConfirmParent(); };
+$("#btn-parent-back").onclick = () => show("home");
+
+function askConfirmParent() {
+  pinPurpose = "parent"; pinFrom = "home";
+  pinBuf = ""; renderPinDots();
+  $("#pin-title").textContent = "🔐 家长专区（请输入密码）";
+  $("#pin-hint").textContent = "输入 4 位家长密码进入";
+  $("#pin-phase1").classList.remove("hidden");
+  $("#pin-phase2").classList.add("hidden");
+  show("pin");
+}
+function askGrantPass() {
+  pinPurpose = "grantpass"; pinFrom = "drawlock";
+  pinBuf = ""; renderPinDots();
+  $("#pin-title").textContent = "🔐 家长特许画画";
+  $("#pin-hint").textContent = "输入密码，特许今天提前画画";
+  $("#pin-phase1").classList.remove("hidden");
+  $("#pin-phase2").classList.add("hidden");
+  show("pin");
+}
+
+/* 启动 */
+renderHome();
+drawTemplate();
+restoreDraftIfAny();
+if (S.active) show("challenge"); else show("home");
+
+/* PWA：部署到 http(s) 后可"添加到主屏幕"当 App 用 */
+if ("serviceWorker" in navigator && location.protocol.indexOf("http") === 0) {
+  addEventListener("load", () => { navigator.serviceWorker.register("sw.js").catch(() => {}); });
+}
+
+/* 家庭服务器同步：打开时拉取电脑上的最新数据（更新者胜） */
+(async () => {
+  if (location.protocol.indexOf("http") !== 0) return;
+  try {
+    const r = await fetch("/api/state?t=" + Date.now(), { cache: "no-store" });
+    if (!r.ok) return;
+    const remote = await r.json();
+    if (remote && (remote.updatedAt || 0) > (S.updatedAt || 0)) {
+      S = Object.assign({}, DEF, remote);
+      try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {}
+      drawTemplate();
+      restoreDraftIfAny();
+      const cur = document.querySelector(".screen.active").id.replace("scr-", "");
+      show(cur);
+      toast("🔄 已同步电脑上的最新数据");
+    }
+  } catch (e) {}
+})();
+</script>
+</body>
+</html>
