@@ -133,12 +133,13 @@
   #scr-draw .btn-small { min-height: 44px; padding: 8px 12px; font-size: 15px; }
   .dot { border-radius: 50%; background: #6A4C93; }
   canvas#pad { position: relative; width: 100%; height: 100%; display: block; touch-action: none; background: transparent; }
-  .pad-wrap { position: relative; width: 100%; aspect-ratio: 1 / 1; border-radius: 22px; overflow: hidden; background: #fff; box-shadow: 0 6px 18px rgba(106,76,147,.14); }
+  .pad-wrap { position: relative; width: 100%; aspect-ratio: 1 / 1; border-radius: 22px; overflow: hidden; background: #fff; box-shadow: 0 6px 18px rgba(106,76,147,.14); margin: 0 auto; }
   #pad-under { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
   .modal input[type=text] { width: 100%; min-height: 46px; border: 3px solid #E1BEE7; border-radius: 12px; font-size: 18px; padding: 6px 12px; text-align: center; font-family: inherit; user-select: text; -webkit-user-select: text; margin-bottom: 14px; }
 
   /* ===== 拓印模板 ===== */
-  body.drawing #app { max-width: 800px; }
+  body.drawing #app { max-width: 900px; }
+  #scr-draw.active { display: flex; flex-direction: column; min-height: 100vh; min-height: 100dvh; }
   #scr-draw .topbar { margin-bottom: 8px; }
   #scr-draw .title { font-size: 21px; margin-bottom: 0; }
   .tpl-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
@@ -361,6 +362,16 @@
     </div>
 
     <div class="card">
+      <div class="form-row"><label>存档备份</label><span id="cloud-status" style="font-size:13px;color:#B39DDB">云端：未配置</span></div>
+      <div style="display:flex;gap:10px">
+        <button class="btn-small" id="btn-export" style="flex:1;min-height:48px">⬇️ 导出存档</button>
+        <button class="btn-small" id="btn-import" style="flex:1;min-height:48px">⬆️ 导入存档</button>
+      </div>
+      <input type="file" id="import-file" accept=".json,application/json" style="display:none">
+      <p style="font-size:13px;color:#B39DDB;margin:10px 0 0">导出的 json 文件在设备下载文件夹里，换设备或数据被误清空后可导入恢复。</p>
+    </div>
+
+    <div class="card">
       <div class="form-row"><label>拓印模板管理</label><span style="font-size:13px;color:#B39DDB">上锁后孩子需 8 滴颜料解锁</span></div>
       <div id="tpl-manage" style="display:flex;flex-wrap:wrap;gap:12px"></div>
     </div>
@@ -409,6 +420,9 @@ const COLORS = [
   { id: "c5", name: "绿色", hex: "#43A047" }, { id: "c6", name: "紫色", hex: "#8E24AA" },
   { id: "c7", name: "橙色", hex: "#FB8C00" }, { id: "c8", name: "粉色", hex: "#EC407A" },
   { id: "c9", name: "棕色", hex: "#795548" }, { id: "c10", name: "青色", hex: "#00ACC1" },
+  { id: "c11", name: "浅蓝", hex: "#4FC3F7" }, { id: "c12", name: "草绿", hex: "#8BC34A" },
+  { id: "c13", name: "肉色", hex: "#FFCC80" }, { id: "c14", name: "灰色", hex: "#9E9E9E" },
+  { id: "c15", name: "金色", hex: "#E0A800" }, { id: "c16", name: "淡紫", hex: "#CE93D8" },
 ];
 const UNLOCK_COST = 6, RAINBOW_COST = 20;
 const REWARD_ONTIME = 8, REWARD_LATE = 3, FIRST_OF_DAY_BONUS = 4;
@@ -419,6 +433,7 @@ function save() {
   try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {}
   clearTimeout(pushTimer);
   pushTimer = setTimeout(pushRemote, 1200); // 防抖：频繁操作后统一推送
+  scheduleCloudPush();
 }
 // 局域网家庭服务器版：把数据推给电脑，全屋设备共享
 function pushRemote() {
@@ -734,6 +749,7 @@ let drawing = false, lastPt = null, lastRainbowHue = 0;
 let undoStack = [];
 
 function renderDraw() {
+  layoutDraw();
   $("#drops-draw").textContent = S.drops;
   renderPalette();
   renderTemplates();
@@ -801,16 +817,17 @@ pad.addEventListener("pointerup", () => { drawing = false; lastPt = null; saveDr
 pad.addEventListener("pointercancel", () => { drawing = false; lastPt = null; saveDraft(); });
 
 function strokeTo(a, b) {
-  if (brush.eraser) { pctx.globalCompositeOperation = "destination-out"; pctx.strokeStyle = "rgba(0,0,0,1)"; pctx.lineWidth = brush.size * 3; }
+  const K = pad.width / 720; // 分辨率补偿：任何画布尺寸下手感一致
+  if (brush.eraser) { pctx.globalCompositeOperation = "destination-out"; pctx.strokeStyle = "rgba(0,0,0,1)"; pctx.lineWidth = brush.size * 3 * K; }
   else {
     pctx.globalCompositeOperation = "source-over";
     if (brush.rainbow) {
       const dist = Math.hypot(b.x - a.x, b.y - a.y);
-      lastRainbowHue = (lastRainbowHue + dist * 0.6) % 360;
+      lastRainbowHue = (lastRainbowHue + (dist / K) * 0.6) % 360;
       brush.hue = lastRainbowHue;
       pctx.strokeStyle = `hsl(${lastRainbowHue}, 85%, 55%)`;
-      pctx.lineWidth = brush.size;
-    } else { pctx.strokeStyle = brush.color; pctx.lineWidth = brush.size; }
+      pctx.lineWidth = brush.size * K;
+    } else { pctx.strokeStyle = brush.color; pctx.lineWidth = brush.size * K; }
   }
   pctx.lineCap = "round"; pctx.lineJoin = "round";
   pctx.beginPath(); pctx.moveTo(a.x, a.y); pctx.lineTo(b.x, b.y); pctx.stroke();
@@ -819,9 +836,40 @@ function strokeTo(a, b) {
 function pushUndo() {
   try {
     undoStack.push(pctx.getImageData(0, 0, pad.width, pad.height));
-    if (undoStack.length > 5) undoStack.shift();
+    if (undoStack.length > 3) undoStack.shift(); // 高分辨率下控制内存
   } catch (e) {}
 }
+
+/* ================= 画布动态适配（平板铺满 + 高清） ================= */
+function resizePadCanvas(cssSize) {
+  const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+  let px = Math.round(cssSize * dpr);
+  px = Math.max(360, Math.min(px, 1280));
+  if (pad.width === px) return;
+  const snap = document.createElement("canvas"); snap.width = pad.width; snap.height = pad.height;
+  snap.getContext("2d").drawImage(pad, 0, 0);
+  const under = document.getElementById("pad-under");
+  const snapU = document.createElement("canvas"); snapU.width = under.width; snapU.height = under.height;
+  snapU.getContext("2d").drawImage(under, 0, 0);
+  pad.width = under.width = px; pad.height = under.height = px;
+  pctx.drawImage(snap, 0, 0, px, px);
+  uctx.clearRect(0, 0, px, px); uctx.drawImage(snapU, 0, 0, px, px);
+  undoStack = []; // 分辨率变了，旧撤销快照作废
+}
+function layoutDraw() {
+  if (!document.body.classList.contains("drawing")) return;
+  const wrap = document.querySelector(".pad-wrap");
+  const w = $("#app").clientWidth;
+  const h = window.innerHeight - 300; // 预留顶部工具区
+  const size = Math.max(300, Math.min(w, h));
+  wrap.style.width = size + "px";
+  resizePadCanvas(size);
+}
+let rzTimer = null;
+window.addEventListener("resize", () => {
+  clearTimeout(rzTimer);
+  rzTimer = setTimeout(() => { if (document.body.classList.contains("drawing")) layoutDraw(); }, 200);
+});
 
 /* ================= 草稿自动保存（随同步上云） ================= */
 let draftTimer = null;
@@ -841,7 +889,7 @@ function saveDraft() { clearTimeout(draftTimer); draftTimer = setTimeout(flushDr
 function restoreDraftIfAny() {
   if (S.draft && S.draft.png && isCanvasEmpty()) {
     const im = new Image();
-    im.onload = () => { if (isCanvasEmpty()) { pctx.drawImage(im, 0, 0); toast("🎨 已恢复上次画到一半的作品"); } };
+    im.onload = () => { if (isCanvasEmpty()) { pctx.drawImage(im, 0, 0, pad.width, pad.height); toast("🎨 已恢复上次画到一半的作品"); } };
     im.src = S.draft.png;
   }
 }
@@ -1024,19 +1072,20 @@ function applyTpl(t) {
   else toast(`照着浅色的「${t.name}」线描一描吧！`);
 }
 function drawTemplate() {
-  uctx.clearRect(0, 0, 720, 720);
+  uctx.clearRect(0, 0, uctx.canvas.width, uctx.canvas.height);
   if (S.tpl && S.tpl.indexOf("cu_") === 0) {
     const ct = (S.customTpls || []).find(x => x.id === S.tpl);
     if (!ct) return;
     const img = new Image();
-    img.onload = () => uctx.drawImage(img, 0, 0);
+    img.onload = () => uctx.drawImage(img, 0, 0, uctx.canvas.width, uctx.canvas.height);
     img.src = ct.png;
     return;
   }
   const t = TPL.find(x => x.id === S.tpl);
   if (!t || !t.draw) return;
   TPL_STYLE = { lw: 6, color: "#CFC7DB" };
-  t.draw(uctx);
+  const k = uctx.canvas.width / 720;
+  uctx.save(); uctx.scale(k, k); t.draw(uctx); uctx.restore();
 }
 
 /* ================= 导入图片生成拓印 ================= */
@@ -1144,12 +1193,12 @@ $("#btn-save").addEventListener("click", () => {
   if (saveBusy) return; saveBusy = true;
   setTimeout(() => { saveBusy = false; }, 800);
   const out = document.createElement("canvas");
-  const scale = 360 / pad.width;
-  out.width = 360; out.height = Math.round(pad.height * scale);
+  const target = Math.min(pad.width, 1440); // 按画布原始分辨率保存，不再缩小
+  out.width = target; out.height = target;
   const octx = out.getContext("2d");
-  octx.fillStyle = "#fff"; octx.fillRect(0, 0, out.width, out.height);
-  octx.drawImage(pad, 0, 0, out.width, out.height);
-  S.drawings.unshift({ d: out.toDataURL("image/jpeg", 0.75), t: Date.now() });
+  octx.fillStyle = "#fff"; octx.fillRect(0, 0, target, target);
+  octx.drawImage(pad, 0, 0, target, target);
+  S.drawings.unshift({ d: out.toDataURL("image/jpeg", 0.85), t: Date.now() });
   if (S.drawings.length > 12) { S.drawings.pop(); toast("画廊最多放 12 幅，最早的收进小抽屉啦"); }
   save(); sUnlock(); flushDraftNow(); toast("💾 已经挂到画廊里啦！还能点「继续画」接着画～");
   show("gallery");
@@ -1168,20 +1217,22 @@ function renderGallery() {
       if (!canDrawNow()) { show("drawlock"); return; } // 画画门禁同样适用
       const im = new Image();
       im.onload = () => {
-        const tmp = document.createElement("canvas"); tmp.width = 720; tmp.height = 720;
+        // 按图片原始尺寸处理（白转透明），不经过中间缩小
+        const tmp = document.createElement("canvas"); tmp.width = im.width; tmp.height = im.height;
         const tc = tmp.getContext("2d");
-        tc.drawImage(im, 0, 0, 720, 720);
-        // 白色背景转透明：让拓印层和橡皮擦继续可用
-        const id = tc.getImageData(0, 0, 720, 720);
+        tc.drawImage(im, 0, 0);
+        const id = tc.getImageData(0, 0, tmp.width, tmp.height);
         const px = id.data;
         for (let i = 0; i < px.length; i += 4) {
           const dist = Math.max(255 - px[i], 255 - px[i + 1], 255 - px[i + 2]);
           px[i + 3] = Math.min(255, dist * 2.4);
         }
         tc.putImageData(id, 0, 0);
-        pctx.clearRect(0, 0, 720, 720);
-        pctx.drawImage(tmp, 0, 0);
+        pctx.clearRect(0, 0, pad.width, pad.height);
+        pctx.drawImage(tmp, 0, 0, pad.width, pad.height);
         undoStack = [];
+        // 清掉拓印底稿，避免和画作重叠
+        S.tpl = "free"; save(); drawTemplate(); renderDraw();
         S.draft = { png: tmp.toDataURL("image/png"), t: Date.now() };
         save();
         show("draw");
@@ -1272,6 +1323,7 @@ function renderParent() {
   $("#min-val").textContent = S.mealMin;
   $("#in-pin").value = S.pin;
   $("#sw-sound").classList.toggle("on", S.sound);
+  $("#cloud-status").textContent = cloudReady() ? "云端：已开启 ✅" : "云端：未配置";
   renderTplManage();
   const log = $("#log");
   if (!S.history.length) { log.innerHTML = "还没有记录，快开始第一次挑战吧！"; }
@@ -1332,6 +1384,38 @@ $("#btn-draw-back").onclick = () => show("home");
 $("#btn-gallery-back").onclick = () => show("home");
 $("#btn-parent").onclick = () => askConfirmParent();
 $("#btn-tpl-manage").onclick = () => { sTap(); askConfirmParent(); };
+
+/* ===== 存档导出/导入 ===== */
+$("#btn-export").addEventListener("click", () => {
+  const blob = new Blob([JSON.stringify(S)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "吃饭大挑战存档-" + new Date().toISOString().slice(0, 10) + ".json";
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+  sOk(); toast("📁 存档已导出到下载文件夹");
+});
+$("#btn-import").addEventListener("click", () => $("#import-file").click());
+$("#import-file").addEventListener("change", e => {
+  const f = e.target.files[0]; e.target.value = "";
+  if (!f) return;
+  const rd = new FileReader();
+  rd.onload = () => {
+    let inc;
+    try { inc = JSON.parse(rd.result); } catch (err) { sSad(); toast("文件读不出来，请选导出的存档 json～"); return; }
+    if (!inc || typeof inc.drops !== "number" || !Array.isArray(inc.drawings)) { sSad(); toast("这不是本应用的存档文件哦"); return; }
+    modal("导入这份存档？", "将覆盖当前全部数据（颜料、解锁、画作、设置）。", [
+      { label: "导入覆盖", onClick: () => {
+          S = Object.assign({}, DEF, inc);
+          S.updatedAt = Date.now(); save();
+          clearPad(); drawTemplate();
+          show("home"); sOk(); confetti(); toast("✅ 存档导入成功！");
+        } },
+      { label: "取消", red: false }
+    ]);
+  };
+  rd.readAsText(f);
+});
 $("#btn-parent-back").onclick = () => show("home");
 
 function askConfirmParent() {
@@ -1364,23 +1448,58 @@ if ("serviceWorker" in navigator && location.protocol.indexOf("http") === 0) {
   addEventListener("load", () => { navigator.serviceWorker.register("sw.js").catch(() => {}); });
 }
 
-/* 家庭服务器同步：打开时拉取电脑上的最新数据（更新者胜） */
-(async () => {
-  if (location.protocol.indexOf("http") !== 0) return;
+/* ===== 云端存档（GitHub 私有仓库，静态托管也能用）===== */
+const CLOUD = { owner: "rainy8000", repo: "meal-hero-save", branch: "main", token: "" }; // token 由家长配置后自动开启
+function cloudReady() { return !!(CLOUD.token && CLOUD.repo); }
+async function pullCloud() {
+  if (!cloudReady()) return null;
+  try {
+    const r = await fetch(`https://api.github.com/repos/${CLOUD.owner}/${CLOUD.repo}/contents/state.json?ref=${CLOUD.branch}&t=${Date.now()}`,
+      { headers: { Authorization: "token " + CLOUD.token, Accept: "application/vnd.github+json" }, cache: "no-store" });
+    if (!r.ok) return null;
+    const j = await r.json();
+    if (!j.content) return null;
+    return JSON.parse(decodeURIComponent(escape(atob(j.content.replace(/\n/g, "")))));
+  } catch (e) { return null; }
+}
+async function pushCloud() {
+  if (!cloudReady()) return;
+  try {
+    const url = `https://api.github.com/repos/${CLOUD.owner}/${CLOUD.repo}/contents/state.json`;
+    const h = { Authorization: "token " + CLOUD.token, Accept: "application/vnd.github+json", "Content-Type": "application/json" };
+    let sha;
+    const gr = await fetch(url + "?ref=" + CLOUD.branch, { headers: h, cache: "no-store" });
+    if (gr.ok) sha = (await gr.json()).sha;
+    const body = { message: "save " + Date.now(), content: btoa(unescape(encodeURIComponent(JSON.stringify(S)))), branch: CLOUD.branch };
+    if (sha) body.sha = sha;
+    await fetch(url, { method: "PUT", headers: h, body: JSON.stringify(body) });
+  } catch (e) {}
+}
+let cloudTimer = null;
+function scheduleCloudPush() { clearTimeout(cloudTimer); cloudTimer = setTimeout(pushCloud, 3000); }
+async function pullFamily() {
+  if (location.protocol.indexOf("http") !== 0) return null;
   try {
     const r = await fetch("/api/state?t=" + Date.now(), { cache: "no-store" });
-    if (!r.ok) return;
-    const remote = await r.json();
-    if (remote && (remote.updatedAt || 0) > (S.updatedAt || 0)) {
-      S = Object.assign({}, DEF, remote);
-      try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {}
-      drawTemplate();
-      restoreDraftIfAny();
-      const cur = document.querySelector(".screen.active").id.replace("scr-", "");
-      show(cur);
-      toast("🔄 已同步电脑上的最新数据");
-    }
-  } catch (e) {}
+    if (!r.ok) return null;
+    return await r.json();
+  } catch (e) { return null; }
+}
+(async () => {
+  // 启动时：本地 / 家庭服务器 / 云端 三份里取最新的
+  const fam = await pullFamily();
+  const cloud = await pullCloud();
+  const cands = [fam, cloud].filter(x => x && (x.updatedAt || 0) > (S.updatedAt || 0));
+  if (cands.length) {
+    cands.sort((a, b) => (a.updatedAt || 0) - (b.updatedAt || 0));
+    S = Object.assign({}, DEF, cands[cands.length - 1]);
+    try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {}
+    drawTemplate();
+    restoreDraftIfAny();
+    const cur = document.querySelector(".screen.active").id.replace("scr-", "");
+    show(cur);
+    toast("🔄 已同步最新存档");
+  }
 })();
 </script>
 </body>
