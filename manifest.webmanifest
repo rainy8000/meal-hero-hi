@@ -1,0 +1,16 @@
+{
+  "name": "吃饭大挑战 · 小画家版",
+  "short_name": "吃饭挑战",
+  "description": "按时吃饭赢颜料，解锁画画和拓印",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FFF3E0",
+  "theme_color": "#F4511E",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
