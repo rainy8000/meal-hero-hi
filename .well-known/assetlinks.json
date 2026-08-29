@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "io.github.rainy8000.twa",
+        "sha256_cert_fingerprints": ["96:FD:DB:4F:56:22:0B:9E:E8:DD:32:B3:0C:C2:85:3B:67:E8:E3:64:4F:92:1C:82:89:21:B8:BD:1D:3E:37:4B"]
+      }
+    }]
