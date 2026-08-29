@@ -125,9 +125,13 @@
   .swatch.sel { outline: 4px solid #6A4C93; outline-offset: 2px; transform: scale(1.08); }
   .swatch.lock::after { content: "🔒"; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 18px; }
   .swatch.rainbow { background: conic-gradient(red, orange, yellow, green, cyan, blue, purple, red); }
+  .swatch.magic { background: conic-gradient(#f44336, #ffc107, #8bc34a, #00bcd4, #3f51b5, #e91e63, #f44336); }
+  .modal input[type=color] { width: 100%; height: 64px; border: none; background: none; margin-bottom: 14px; }
   .swatch.eraser { background: repeating-linear-gradient(45deg, #ECEFF1 0 8px, #CFD8DC 8px 16px); font-size: 20px; }
   .swatch.eraser::before { content: "🧽"; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
   .tools { display: flex; gap: 8px; justify-content: center; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
+  .tool-btn { width: 44px; height: 44px; border-radius: 14px; border: none; background: #fff; box-shadow: 0 3px 8px rgba(0,0,0,.12); font-size: 22px; line-height: 1; }
+  .tool-btn.sel { outline: 4px solid #6A4C93; }
   .size-btn { width: 44px; height: 44px; border-radius: 14px; border: none; background: #fff; box-shadow: 0 3px 8px rgba(0,0,0,.12); display: flex; align-items: center; justify-content: center; }
   .size-btn.sel { outline: 4px solid #6A4C93; }
   #scr-draw .btn-small { min-height: 44px; padding: 8px 12px; font-size: 15px; }
@@ -139,7 +143,8 @@
 
   /* ===== 拓印模板 ===== */
   body.drawing #app { max-width: 900px; }
-  #scr-draw.active { display: flex; flex-direction: column; min-height: 100vh; min-height: 100dvh; }
+  #scr-draw.active { display: flex; flex-direction: column; justify-content: center; justify-content: safe center; min-height: 100vh; min-height: 100dvh; }
+  #scr-draw .btn-link { font-size: 20px; }
   #scr-draw .topbar { margin-bottom: 8px; }
   #scr-draw .title { font-size: 21px; margin-bottom: 0; }
   .tpl-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
@@ -313,6 +318,10 @@
     </div>
     <div class="palette" id="palette"></div>
     <div class="tools">
+      <button class="tool-btn sel" data-t="pen" title="普通笔">🖊️</button>
+      <button class="tool-btn" data-t="pencil" title="铅笔">✏️</button>
+      <button class="tool-btn" data-t="brush" title="毛笔">🖌️</button>
+      <button class="tool-btn" data-t="flood" title="填色">🪣</button>
       <button class="size-btn" data-s="4"><span class="dot" style="width:10px;height:10px"></span></button>
       <button class="size-btn sel" data-s="10"><span class="dot" style="width:20px;height:20px"></span></button>
       <button class="size-btn" data-s="22"><span class="dot" style="width:28px;height:28px"></span></button>
@@ -402,7 +411,7 @@ const DEF = { name: "宝贝", mealMin: 30, pin: "1234", sound: true,
   drops: 0, unlocked: ["c1","c2","c3","c4"], streak: 0, lastOnTime: null,
   history: [], drawings: [], active: null, tpl: "free", unlockedTpl: [],
   customTpls: [], tplLocks: { dino: true, unicorn: true },
-  lastMealDate: null, drawPassDate: null, updatedAt: 0 };
+  lastMealDate: null, drawPassDate: null, updatedAt: 0, magicColor: null };
 let S;
 try { S = Object.assign({}, DEF, JSON.parse(localStorage.getItem(KEY) || "{}")); }
 catch (e) { S = Object.assign({}, DEF); }
@@ -423,6 +432,7 @@ const COLORS = [
   { id: "c11", name: "浅蓝", hex: "#4FC3F7" }, { id: "c12", name: "草绿", hex: "#8BC34A" },
   { id: "c13", name: "肉色", hex: "#FFCC80" }, { id: "c14", name: "灰色", hex: "#9E9E9E" },
   { id: "c15", name: "金色", hex: "#E0A800" }, { id: "c16", name: "淡紫", hex: "#CE93D8" },
+  { id: "magic", name: "万能色", hex: "#7C4DFF", magic: true },
 ];
 const UNLOCK_COST = 6, RAINBOW_COST = 20;
 const REWARD_ONTIME = 8, REWARD_LATE = 3, FIRST_OF_DAY_BONUS = 4;
@@ -744,12 +754,12 @@ function confetti() {
 
 /* ================= 画画 ================= */
 const pad = $("#pad"), pctx = pad.getContext("2d");
-let brush = { color: COLORS[0].hex, size: 10, rainbow: false, eraser: false, hue: 0 };
-let drawing = false, lastPt = null, lastRainbowHue = 0;
+let drawing = false, lastPt = null, lastRainbowHue = 0, prevT = 0;
 let undoStack = [];
 
 function renderDraw() {
   layoutDraw();
+  setTimeout(layoutDraw, 350); // 字体/表情加载后行高会变，二次校准
   $("#drops-draw").textContent = S.drops;
   renderPalette();
   renderTemplates();
@@ -759,13 +769,18 @@ function renderPalette() {
   COLORS.forEach(c => {
     const locked = !S.unlocked.includes(c.id);
     const b = document.createElement("button");
-    b.className = "swatch" + (!brush.eraser && brush.color === c.hex ? " sel" : "") + (locked ? " lock" : "");
-    b.style.background = c.hex;
+    let bg = c.hex, sel = false;
+    if (c.magic) {
+      if (S.magicColor) { bg = S.magicColor; sel = !brush.eraser && !brush.rainbow && brush.color === S.magicColor; }
+    } else sel = !brush.eraser && !brush.rainbow && brush.color === c.hex;
+    b.className = "swatch" + (sel ? " sel" : "") + (locked ? " lock" : "") + (c.magic && !S.magicColor ? " magic" : "");
+    b.style.background = bg;
+    b.title = c.name;
     b.onclick = () => {
       if (locked) return askUnlockColor(c);
+      if (c.magic) return openMagicPicker();
       sTap(); brush.color = c.hex; brush.rainbow = false; brush.eraser = false; renderPalette();
     };
-    b.title = c.name;
     box.appendChild(b);
   });
   const rb = document.createElement("button");
@@ -776,6 +791,23 @@ function renderPalette() {
   };
   rb.title = "彩虹笔";
   box.appendChild(rb);
+}
+function openMagicPicker() {
+  sTap();
+  const box = $("#modal-box");
+  box.innerHTML = `<h3>🎨 万能调色盘</h3>
+    <p style="font-size:14px;margin-bottom:10px">想要什么颜色自己调！调好点「就用它」</p>
+    <input type="color" id="magic-pick" value="${S.magicColor || "#FF6699"}">
+    <div class="row"><button class="btn-small" id="magic-ok">就用它！</button><button class="btn-small red" id="magic-no">先不要</button></div>`;
+  $("#modal-mask").classList.add("show");
+  document.getElementById("magic-ok").onclick = () => {
+    const v = document.getElementById("magic-pick").value;
+    S.magicColor = v; save();
+    brush.color = v; brush.rainbow = false; brush.eraser = false;
+    $("#modal-mask").classList.remove("show");
+    sUnlock(); renderDraw(); toast("🎨 自定义颜色开画！");
+  };
+  document.getElementById("magic-no").onclick = () => $("#modal-mask").classList.remove("show");
 }
 function askUnlockColor(c) {
   if (S.unlocked.includes(c.id)) return;
@@ -800,37 +832,100 @@ function padXY(e) {
 function clearPad() { pctx.clearRect(0, 0, pad.width, pad.height); undoStack = []; }
 clearPad();
 
+function hslRgb(h, s, l) {
+  s /= 100; l /= 100;
+  const k = n => (n + h / 30) % 12;
+  const a = s * Math.min(l, 1 - l);
+  const f = n => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+  return [Math.round(f(0) * 255), Math.round(f(8) * 255), Math.round(f(4) * 255)];
+}
+function floodFill(sx, sy) {
+  const w = pad.width, h = pad.height;
+  sx = Math.max(0, Math.min(w - 1, Math.round(sx)));
+  sy = Math.max(0, Math.min(h - 1, Math.round(sy)));
+  let fr, fg, fb;
+  if (brush.rainbow) [fr, fg, fb] = hslRgb(brush.hue, 85, 55);
+  else {
+    fr = parseInt(brush.color.slice(1, 3), 16);
+    fg = parseInt(brush.color.slice(3, 5), 16);
+    fb = parseInt(brush.color.slice(5, 7), 16);
+  }
+  const img = pctx.getImageData(0, 0, w, h);
+  const d = img.data;
+  const si = (sy * w + sx) * 4;
+  const tr = d[si], tg = d[si + 1], tb = d[si + 2], ta = d[si + 3];
+  if (Math.abs(tr - fr) + Math.abs(tg - fg) + Math.abs(tb - fb) < 15 && ta === 255) return; // 已是此色
+  const tol2 = 40 * 40 * 4;
+  const match = i => {
+    const dr = d[i] - tr, dg = d[i + 1] - tg, db = d[i + 2] - tb, da = d[i + 3] - ta;
+    return dr * dr + dg * dg + db * db + da * da <= tol2;
+  };
+  const stack = [[sx, sy]];
+  while (stack.length) {
+    const pop = stack.pop();
+    let x = pop[0];
+    const cy = pop[1];
+    while (x >= 0 && match((cy * w + x) * 4)) x--;
+    x++;
+    let spanUp = false, spanDown = false;
+    while (x < w && match((cy * w + x) * 4)) {
+      const i = (cy * w + x) * 4;
+      d[i] = fr; d[i + 1] = fg; d[i + 2] = fb; d[i + 3] = 255;
+      if (cy > 0) { const up = match(((cy - 1) * w + x) * 4); if (up && !spanUp) { stack.push([x, cy - 1]); spanUp = true; } else if (!up) spanUp = false; }
+      if (cy < h - 1) { const dn = match(((cy + 1) * w + x) * 4); if (dn && !spanDown) { stack.push([x, cy + 1]); spanDown = true; } else if (!dn) spanDown = false; }
+      x++;
+    }
+  }
+  pctx.putImageData(img, 0, 0);
+}
+
 pad.addEventListener("pointerdown", e => {
   e.preventDefault();
-  drawing = true; try { pad.setPointerCapture(e.pointerId); } catch (err) {}
+  try { pad.setPointerCapture(e.pointerId); } catch (err) {}
+  prevT = e.timeStamp;
+  if (brush.kind === "flood" && !brush.eraser) {
+    const p = padXY(e);
+    pushUndo();
+    floodFill(p.x, p.y);
+    saveDraft();
+    return;
+  }
+  drawing = true;
   pushUndo();
   lastPt = padXY(e);
   if (brush.rainbow) lastRainbowHue = brush.hue;
-  strokeTo(lastPt, lastPt);
+  strokeTo(lastPt, lastPt, e.timeStamp);
 });
 pad.addEventListener("pointermove", e => {
   if (!drawing) return;
   e.preventDefault();
-  strokeTo(lastPt, padXY(e));
+  strokeTo(lastPt, padXY(e), e.timeStamp);
 });
 pad.addEventListener("pointerup", () => { drawing = false; lastPt = null; saveDraft(); });
 pad.addEventListener("pointercancel", () => { drawing = false; lastPt = null; saveDraft(); });
 
-function strokeTo(a, b) {
+function strokeTo(a, b, t) {
   const K = pad.width / 720; // 分辨率补偿：任何画布尺寸下手感一致
-  if (brush.eraser) { pctx.globalCompositeOperation = "destination-out"; pctx.strokeStyle = "rgba(0,0,0,1)"; pctx.lineWidth = brush.size * 3 * K; }
-  else {
-    pctx.globalCompositeOperation = "source-over";
-    if (brush.rainbow) {
-      const dist = Math.hypot(b.x - a.x, b.y - a.y);
-      lastRainbowHue = (lastRainbowHue + (dist / K) * 0.6) % 360;
-      brush.hue = lastRainbowHue;
-      pctx.strokeStyle = `hsl(${lastRainbowHue}, 85%, 55%)`;
-      pctx.lineWidth = brush.size * K;
-    } else { pctx.strokeStyle = brush.color; pctx.lineWidth = brush.size * K; }
+  let width = brush.size * K;
+  if (brush.eraser) width = brush.size * 3 * K;
+  else if (brush.kind === "pencil") width = Math.max(1.5, brush.size * 0.3) * K;
+  else if (brush.kind === "brush") {
+    const speed = Math.hypot(b.x - a.x, b.y - a.y) / Math.max(16, (t || prevT) - prevT || 16);
+    width = brush.size * 1.35 * K * Math.max(0.3, Math.min(1.45, 1.45 - speed * 0.5));
   }
+  pctx.lineWidth = width;
+  pctx.globalAlpha = brush.kind === "pencil" ? 0.85 : brush.kind === "brush" ? 0.92 : 1;
+  pctx.globalCompositeOperation = brush.eraser ? "destination-out" : "source-over";
+  if (brush.eraser) pctx.strokeStyle = "rgba(0,0,0,1)";
+  else if (brush.rainbow) {
+    const dist = Math.hypot(b.x - a.x, b.y - a.y);
+    lastRainbowHue = (lastRainbowHue + (dist / K) * 0.6) % 360;
+    brush.hue = lastRainbowHue;
+    pctx.strokeStyle = `hsl(${lastRainbowHue}, 85%, 55%)`;
+  } else pctx.strokeStyle = brush.color;
   pctx.lineCap = "round"; pctx.lineJoin = "round";
   pctx.beginPath(); pctx.moveTo(a.x, a.y); pctx.lineTo(b.x, b.y); pctx.stroke();
+  prevT = t || prevT;
   lastPt = b;
 }
 function pushUndo() {
@@ -859,9 +954,14 @@ function resizePadCanvas(cssSize) {
 function layoutDraw() {
   if (!document.body.classList.contains("drawing")) return;
   const wrap = document.querySelector(".pad-wrap");
-  const w = $("#app").clientWidth;
-  const h = window.innerHeight - 300; // 预留顶部工具区
-  const size = Math.max(300, Math.min(w, h));
+  const w = Math.max(280, $("#app").clientWidth - 32); // 减去左右内边距，避免偏移
+  let used = 112; // 「回主页」链接 + 余量（实测校准）
+  ["#scr-draw .topbar", ".tpl-row", ".palette", ".tools"].forEach(sel => {
+    const el = document.querySelector(sel);
+    if (el) used += el.getBoundingClientRect().height + 10;
+  });
+  const h = Math.max(320, window.innerHeight - used);
+  const size = Math.min(w, h);
   wrap.style.width = size + "px";
   resizePadCanvas(size);
 }
@@ -898,6 +998,7 @@ window.addEventListener("beforeunload", flushDraftNow);
 
 /* ================= 拓印模板 ================= */
 const uctx = $("#pad-under").getContext("2d");
+let brush = { color: COLORS[0].hex, size: 10, rainbow: false, eraser: false, hue: 0, kind: "pen" };
 const TPL_COST = 8;
 let TPL_STYLE = { lw: 6, color: "#CFC7DB" };
 function tSet(ctx) { ctx.strokeStyle = TPL_STYLE.color; ctx.lineWidth = TPL_STYLE.lw; ctx.lineCap = "round"; ctx.lineJoin = "round"; }
@@ -1009,6 +1110,66 @@ function tButterfly(ctx) {
   tB(ctx, [[348, 272], [330, 235], [322, 212], [310, 198]]); tC(ctx, 310, 198, 8);
   tB(ctx, [[372, 272], [390, 235], [398, 212], [410, 198]]); tC(ctx, 410, 198, 8);
 }
+function tPig(ctx) {
+  tR(ctx, [[232, 262], [258, 155], [340, 240]], true);
+  tR(ctx, [[488, 262], [462, 155], [380, 240]], true);
+  tE(ctx, 360, 340, 145, 130);
+  tC(ctx, 300, 335, 10); tC(ctx, 420, 335, 10);
+  tE(ctx, 360, 395, 80, 55);
+  tE(ctx, 334, 395, 10, 16); tE(ctx, 386, 395, 10, 16);
+  tC(ctx, 235, 400, 16); tC(ctx, 485, 400, 16);
+  tE(ctx, 360, 560, 210, 130);
+  tE(ctx, 285, 655, 46, 24); tE(ctx, 435, 655, 46, 24);
+  tB(ctx, [[565, 500], [650, 470], [660, 385], [585, 375]]);
+}
+function tChick(ctx) {
+  tC(ctx, 360, 415, 175);
+  tR(ctx, [[338, 250], [352, 208], [366, 248]]);
+  tR(ctx, [[382, 250], [368, 208], [354, 248]]);
+  tC(ctx, 305, 382, 10); tC(ctx, 415, 382, 10);
+  tL(ctx, [[360, 402], [394, 430], [360, 458], [326, 430]], true);
+  tE(ctx, 215, 445, 50, 82, 0.45); tE(ctx, 505, 445, 50, 82, -0.45);
+  tL(ctx, [[322, 585], [312, 622]]); tL(ctx, [[312, 622], [296, 634]]);
+  tL(ctx, [[312, 622], [330, 634]]);
+  tL(ctx, [[398, 585], [408, 622]]); tL(ctx, [[408, 622], [392, 634]]);
+  tL(ctx, [[408, 622], [426, 634]]);
+}
+function tPenguin(ctx) {
+  tE(ctx, 360, 420, 175, 190);
+  tE(ctx, 360, 470, 120, 140);
+  tC(ctx, 312, 300, 10); tC(ctx, 408, 300, 10);
+  tL(ctx, [[342, 335], [378, 335], [360, 363]], true);
+  tE(ctx, 205, 420, 42, 78, 0.35); tE(ctx, 515, 420, 42, 78, -0.35);
+  tE(ctx, 308, 610, 52, 32); tE(ctx, 412, 610, 52, 32);
+}
+function tSunflower(ctx) {
+  for (let i = 0; i < 12; i++) {
+    const a = i * Math.PI / 6;
+    tE(ctx, 360 + 130 * Math.cos(a), 320 + 130 * Math.sin(a), 62, 30, a); // 花瓣
+  }
+  tC(ctx, 360, 320, 72);                                              // 花心
+  for (let i = 0; i < 6; i++) { const a = i * Math.PI / 3 + 0.3; tC(ctx, 360 + 34 * Math.cos(a), 320 + 34 * Math.sin(a), 5); }
+  tB(ctx, [[360, 392], [352, 470], [372, 550], [360, 635]]);          // 茎
+  tE(ctx, 296, 545, 62, 30, -0.5); tE(ctx, 424, 585, 62, 30, 0.5);    // 叶子
+}
+function tMushroom(ctx) {
+  tA(ctx, 360, 420, 195, Math.PI, 0);                                  // 伞盖
+  tL(ctx, [[165, 420], [165, 452], [555, 452], [555, 420]]);           // 伞底边
+  tL(ctx, [[248, 452], [248, 590], [472, 590], [472, 452]]);           // 柄
+  tC(ctx, 280, 350, 26); tC(ctx, 435, 330, 32); tC(ctx, 370, 390, 16); // 斑点
+  tC(ctx, 320, 570, 6); tC(ctx, 400, 570, 6);                          // 脚边小点
+  tA(ctx, 340, 528, 16, 0.3, 2.84); tA(ctx, 380, 528, 16, 0.3, 2.84); // 微笑
+}
+function tCactus(ctx) {
+  tR(ctx, [[310, 560], [304, 340], [310, 245], [330, 225], [360, 218], [390, 225], [410, 245], [416, 340], [410, 560]]); // 主干
+  tR(ctx, [[310, 380], [255, 375], [230, 350], [228, 275], [258, 272], [262, 330], [312, 330]]);   // 左臂
+  tR(ctx, [[410, 330], [465, 325], [490, 300], [492, 235], [462, 232], [458, 275], [410, 275]]);   // 右臂
+  tR(ctx, [[255, 560], [465, 560], [465, 592], [255, 592]], true);   // 盆沿
+  tR(ctx, [[272, 592], [448, 592], [432, 660], [288, 660]], true);   // 盆身
+  tC(ctx, 360, 196, 10);                                              // 顶花心
+  for (let i = 0; i < 5; i++) { const a = -Math.PI / 2 + i * Math.PI * 2 / 5; tC(ctx, 360 + 26 * Math.cos(a), 196 + 26 * Math.sin(a), 14); }
+  tC(ctx, 330, 300, 4); tC(ctx, 390, 360, 4); tC(ctx, 345, 430, 4); tC(ctx, 375, 500, 4); // 刺点
+}
 
 const TPL = [
   { id: "free", name: "自由画", draw: null },
@@ -1020,6 +1181,12 @@ const TPL = [
   { id: "unicorn", name: "独角兽", draw: tUnicorn },
   { id: "flower", name: "小花", draw: tFlower },
   { id: "butterfly", name: "蝴蝶", draw: tButterfly },
+  { id: "pig", name: "小猪", draw: tPig },
+  { id: "chick", name: "小鸡", draw: tChick },
+  { id: "penguin", name: "企鹅", draw: tPenguin },
+  { id: "sunflower", name: "向日葵", draw: tSunflower },
+  { id: "mushroom", name: "蘑菇", draw: tMushroom },
+  { id: "cactus", name: "仙人掌", draw: tCactus },
 ];
 function tplLocked(t) { return !!S.tplLocks[t.id] && !S.unlockedTpl.includes(t.id); }
 function tplEntries() {
@@ -1170,6 +1337,11 @@ $("#tpl-file").addEventListener("change", e => {
   };
   rd.readAsDataURL(f);
 });
+$$("#scr-draw .tool-btn").forEach(b => b.addEventListener("click", () => {
+  sTap(); brush.kind = b.dataset.t; brush.eraser = false;
+  $$("#scr-draw .tool-btn").forEach(x => x.classList.toggle("sel", x === b));
+  renderPalette();
+}));
 $$("#scr-draw .size-btn").forEach(b => b.addEventListener("click", () => {
   sTap(); brush.size = +b.dataset.s; brush.eraser = false;
   $$("#scr-draw .size-btn").forEach(x => x.classList.toggle("sel", x === b));
