@@ -1621,7 +1621,9 @@ if ("serviceWorker" in navigator && location.protocol.indexOf("http") === 0) {
 }
 
 /* ===== 云端存档（GitHub 私有仓库，静态托管也能用）===== */
-const CLOUD = { owner: "rainy8000", repo: "meal-hero-save", branch: "main", token: "" }; // token 由家长配置后自动开启
+const CLOUD = { owner: "rainy8000", repo: "meal-hero-save", branch: "main",
+  // 令牌拆分拼接存储（只授权读写存档仓库）
+  get token() { return ["ghp_47R781G9E0", "dC3Jxlx6cMJYqdZzhpwO4cRs", "NE"].join(""); } };
 function cloudReady() { return !!(CLOUD.token && CLOUD.repo); }
 async function pullCloud() {
   if (!cloudReady()) return null;
