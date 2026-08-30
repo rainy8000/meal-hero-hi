@@ -1406,13 +1406,15 @@ $("#btn-save").addEventListener("click", () => {
   if (saveBusy) return; saveBusy = true;
   setTimeout(() => { saveBusy = false; }, 800);
   const out = document.createElement("canvas");
-  const target = Math.min(pad.width, 1440); // 按画布原始分辨率保存，不再缩小
+  const target = Math.min(pad.width, 1280); // 与画布同分辨率，PNG 无损保存不模糊
   out.width = target; out.height = target;
   const octx = out.getContext("2d");
   octx.fillStyle = "#fff"; octx.fillRect(0, 0, target, target);
   octx.drawImage(pad, 0, 0, target, target);
-  S.drawings.unshift({ d: out.toDataURL("image/jpeg", 0.85), t: Date.now() });
-  if (S.drawings.length > 12) { S.drawings.pop(); toast("画廊最多放 12 幅，最早的收进小抽屉啦"); }
+  S.drawings.unshift({ d: out.toDataURL("image/png"), t: Date.now() });
+  // 高清画作占空间：超出浏览器存储预算时自动收起最早的几幅（至少保留4幅）
+  while (S.drawings.length > 4 && JSON.stringify(S).length > 3200000) S.drawings.pop();
+  if (S.drawings.length > 12) { S.drawings.length = 12; toast("画廊最多放 12 幅，最早的收进小抽屉啦"); }
   save(); sUnlock(); flushDraftNow(); toast("💾 已经挂到画廊里啦！还能点「继续画」接着画～");
   show("gallery");
 });
@@ -1438,7 +1440,7 @@ function renderGallery() {
         const px = id.data;
         for (let i = 0; i < px.length; i += 4) {
           const dist = Math.max(255 - px[i], 255 - px[i + 1], 255 - px[i + 2]);
-          px[i + 3] = Math.min(255, dist * 2.4);
+          px[i + 3] = Math.min(255, dist * 3.5); // 更实的边缘，不发虚
         }
         tc.putImageData(id, 0, 0);
         pctx.clearRect(0, 0, pad.width, pad.height);
@@ -1669,25 +1671,39 @@ function cloudReady() { return !!(CLOUD.token && CLOUD.repo); }
 async function pullCloud() {
   if (!cloudReady()) return null;
   try {
-    const r = await fetch(`https://api.github.com/repos/${CLOUD.owner}/${CLOUD.repo}/contents/state.json?ref=${CLOUD.branch}&t=${Date.now()}`,
-      { headers: { Authorization: "token " + CLOUD.token, Accept: "application/vnd.github+json" }, cache: "no-store" });
-    if (!r.ok) return null;
-    const j = await r.json();
-    if (!j.content) return null;
-    return JSON.parse(decodeURIComponent(escape(atob(j.content.replace(/\n/g, "")))));
+    const base = `https://api.github.com/repos/${CLOUD.owner}/${CLOUD.repo}`;
+    const h = { Authorization: "token " + CLOUD.token, Accept: "application/vnd.github+json" };
+    // Git 数据链读取：ref → commit → tree → blob（支持大文件）
+    const ref = await (await fetch(`${base}/git/ref/heads/${CLOUD.branch}`, { headers: h, cache: "no-store" })).json();
+    if (!ref.object) return null;
+    const commit = await (await fetch(`${base}/git/commits/${ref.object.sha}`, { headers: h, cache: "no-store" })).json();
+    const tree = await (await fetch(`${base}/git/trees/${commit.tree.sha}`, { headers: h, cache: "no-store" })).json();
+    const entry = (tree.tree || []).find(t => t.path === "state.json");
+    if (!entry) return null;
+    const blob = await (await fetch(`${base}/git/blobs/${entry.sha}`, { headers: h, cache: "no-store" })).json();
+    return JSON.parse(decodeURIComponent(escape(atob((blob.content || "").replace(/\n/g, "")))));
   } catch (e) { return null; }
 }
 async function pushCloud() {
   if (!cloudReady()) return;
   try {
-    const url = `https://api.github.com/repos/${CLOUD.owner}/${CLOUD.repo}/contents/state.json`;
+    const base = `https://api.github.com/repos/${CLOUD.owner}/${CLOUD.repo}`;
     const h = { Authorization: "token " + CLOUD.token, Accept: "application/vnd.github+json", "Content-Type": "application/json" };
-    let sha;
-    const gr = await fetch(url + "?ref=" + CLOUD.branch, { headers: h, cache: "no-store" });
-    if (gr.ok) sha = (await gr.json()).sha;
-    const body = { message: "save " + Date.now(), content: btoa(unescape(encodeURIComponent(JSON.stringify(S)))), branch: CLOUD.branch };
-    if (sha) body.sha = sha;
-    await fetch(url, { method: "PUT", headers: h, body: JSON.stringify(body) });
+    const content = btoa(unescape(encodeURIComponent(JSON.stringify(S))));
+    // Git 提交链推送：blob → tree → commit → 更新引用（支持大文件，突破1MB限制）
+    const blob = await (await fetch(`${base}/git/blobs`, { method: "POST", headers: h, body: JSON.stringify({ content, encoding: "base64" }) })).json();
+    if (!blob.sha) return;
+    const ref = await (await fetch(`${base}/git/ref/heads/${CLOUD.branch}`, { headers: h, cache: "no-store" })).json();
+    if (!ref.object) { // 空仓库：退回 contents 接口
+      await fetch(`${base}/contents/state.json`, { method: "PUT", headers: h, body: JSON.stringify({ message: "save", content }) });
+      return;
+    }
+    const last = await (await fetch(`${base}/git/commits/${ref.object.sha}`, { headers: h, cache: "no-store" })).json();
+    const tree = await (await fetch(`${base}/git/trees`, { method: "POST", headers: h, body: JSON.stringify({ base_tree: last.tree.sha, tree: [{ path: "state.json", mode: "100644", type: "blob", sha: blob.sha }] }) })).json();
+    if (!tree.sha) return;
+    const nc = await (await fetch(`${base}/git/commits`, { method: "POST", headers: h, body: JSON.stringify({ message: "save " + Date.now(), tree: tree.sha, parents: [ref.object.sha] }) })).json();
+    if (!nc.sha) return;
+    await fetch(`${base}/git/refs/heads/${CLOUD.branch}`, { method: "PATCH", headers: h, body: JSON.stringify({ sha: nc.sha, force: false }) });
   } catch (e) {}
 }
 let cloudTimer = null;
