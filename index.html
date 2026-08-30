@@ -1659,9 +1659,13 @@ async function pullFamily() {
 }
 (async () => {
   // 启动时：本地 / 家庭服务器 / 云端 三份里取最新的
+  // 保护规则：空白的"新出厂"数据不允许覆盖有内容的数据（防止误清空扩散）
+  const looksFresh = x => !!(x && !x.drawings?.length && !x.history?.length && !x.drops
+    && !x.unlockedTpl?.length && (x.unlocked?.length || 0) <= 4 && !x.lastMealDate && !x.draft);
   const fam = await pullFamily();
   const cloud = await pullCloud();
-  const cands = [fam, cloud].filter(x => x && (x.updatedAt || 0) > (S.updatedAt || 0));
+  const cands = [fam, cloud].filter(x => x && (x.updatedAt || 0) > (S.updatedAt || 0)
+    && !(looksFresh(x) && !looksFresh(S)));
   if (cands.length) {
     cands.sort((a, b) => (a.updatedAt || 0) - (b.updatedAt || 0));
     S = Object.assign({}, DEF, cands[cands.length - 1]);
