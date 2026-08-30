@@ -130,7 +130,7 @@
   .swatch.eraser { background: repeating-linear-gradient(45deg, #ECEFF1 0 8px, #CFD8DC 8px 16px); font-size: 20px; }
   .swatch.eraser::before { content: "🧽"; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
   .tools { display: flex; gap: 8px; justify-content: center; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
-  .tool-btn { width: 44px; height: 44px; border-radius: 14px; border: none; background: #fff; box-shadow: 0 3px 8px rgba(0,0,0,.12); font-size: 22px; line-height: 1; }
+  .tool-btn { width: 44px; height: 44px; border-radius: 14px; border: none; background: #fff; box-shadow: 0 3px 8px rgba(0,0,0,.12); font-size: 22px; line-height: 1; display: flex; align-items: center; justify-content: center; }
   .tool-btn.sel { outline: 4px solid #6A4C93; }
   .size-btn { width: 44px; height: 44px; border-radius: 14px; border: none; background: #fff; box-shadow: 0 3px 8px rgba(0,0,0,.12); display: flex; align-items: center; justify-content: center; }
   .size-btn.sel { outline: 4px solid #6A4C93; }
@@ -321,7 +321,13 @@
       <button class="tool-btn sel" data-t="pen" title="普通笔">🖊️</button>
       <button class="tool-btn" data-t="pencil" title="铅笔">✏️</button>
       <button class="tool-btn" data-t="brush" title="毛笔">🖌️</button>
-      <button class="tool-btn" data-t="flood" title="填色">🪣</button>
+      <button class="tool-btn" data-t="flood" title="填色">
+        <svg viewBox="0 0 24 24" width="27" height="27" aria-hidden="true">
+          <path d="M12 2.8 Q6.2 2.8 4.4 8.6 L6.2 9.3 Q9 5.6 12 5.6 Q15 5.6 17.8 9.3 L19.6 8.6 Q17.8 2.8 12 2.8" fill="#8E24AA"/>
+          <path d="M5.4 10.2 L7 19.2 Q7.2 20.6 8.6 20.6 L15.4 20.6 Q16.8 20.6 17 19.2 L18.6 10.2 Q12 12.8 5.4 10.2" fill="#9575CD"/>
+          <path d="M19.6 11.2 Q21.8 14 21.8 15.5 A2.1 2.1 0 0 1 17.6 15.5 Q17.6 14 19.6 11.2" fill="#FF7043"/>
+        </svg>
+      </button>
       <button class="size-btn" data-s="4"><span class="dot" style="width:10px;height:10px"></span></button>
       <button class="size-btn sel" data-s="10"><span class="dot" style="width:20px;height:20px"></span></button>
       <button class="size-btn" data-s="22"><span class="dot" style="width:28px;height:28px"></span></button>
@@ -861,6 +867,8 @@ function floodFill(sx, sy) {
     return dr * dr + dg * dg + db * db + da * da <= tol2;
   };
   const stack = [[sx, sy]];
+  const mask = new Uint8Array(w * h); // 记录填充区域，用于向外扩散吃掉白边
+  mask[sy * w + sx] = 1;
   while (stack.length) {
     const pop = stack.pop();
     let x = pop[0];
@@ -871,23 +879,45 @@ function floodFill(sx, sy) {
     while (x < w && match((cy * w + x) * 4)) {
       const i = (cy * w + x) * 4;
       d[i] = fr; d[i + 1] = fg; d[i + 2] = fb; d[i + 3] = 255;
+      mask[cy * w + x] = 1;
       if (cy > 0) { const up = match(((cy - 1) * w + x) * 4); if (up && !spanUp) { stack.push([x, cy - 1]); spanUp = true; } else if (!up) spanUp = false; }
       if (cy < h - 1) { const dn = match(((cy + 1) * w + x) * 4); if (dn && !spanDown) { stack.push([x, cy + 1]); spanDown = true; } else if (!dn) spanDown = false; }
       x++;
     }
   }
+  // 向外扩散2像素：吃掉线条边缘的抗锯齿白缝，让填色贴合线条
+  for (let round = 0; round < 2; round++) {
+    const add = [];
+    for (let y = 0; y < h; y++) {
+      const row = y * w;
+      for (let x = 0; x < w; x++) {
+        const i = row + x;
+        if (mask[i]) continue;
+        if ((x > 0 && mask[i - 1]) || (x < w - 1 && mask[i + 1]) || (y > 0 && mask[i - w]) || (y < h - 1 && mask[i + w])) add.push(i);
+      }
+    }
+    for (const i of add) {
+      mask[i] = 1;
+      const j = i * 4;
+      d[j] = fr; d[j + 1] = fg; d[j + 2] = fb; d[j + 3] = 255;
+    }
+  }
   pctx.putImageData(img, 0, 0);
 }
 
+let activePointer = null; // 防误触：同时只认第一根手指
 pad.addEventListener("pointerdown", e => {
   e.preventDefault();
+  if (activePointer !== null) return; // 已有手指在画，忽略其它触点（防连掌/双指连线）
   try { pad.setPointerCapture(e.pointerId); } catch (err) {}
+  activePointer = e.pointerId;
   prevT = e.timeStamp;
   if (brush.kind === "flood" && !brush.eraser) {
     const p = padXY(e);
     pushUndo();
     floodFill(p.x, p.y);
     saveDraft();
+    activePointer = null;
     return;
   }
   drawing = true;
@@ -897,12 +927,21 @@ pad.addEventListener("pointerdown", e => {
   strokeTo(lastPt, lastPt, e.timeStamp);
 });
 pad.addEventListener("pointermove", e => {
-  if (!drawing) return;
+  if (!drawing || e.pointerId !== activePointer) return;
   e.preventDefault();
   strokeTo(lastPt, padXY(e), e.timeStamp);
 });
-pad.addEventListener("pointerup", () => { drawing = false; lastPt = null; saveDraft(); });
-pad.addEventListener("pointercancel", () => { drawing = false; lastPt = null; saveDraft(); });
+pad.addEventListener("pointerup", e => {
+  if (e.pointerId !== activePointer) return;
+  drawing = false; activePointer = null; lastPt = null; saveDraft();
+});
+pad.addEventListener("pointercancel", e => {
+  if (e.pointerId !== activePointer) return;
+  drawing = false; activePointer = null; lastPt = null; saveDraft();
+});
+pad.addEventListener("lostpointercapture", e => {
+  if (e.pointerId === activePointer) { drawing = false; activePointer = null; saveDraft(); }
+});
 
 function strokeTo(a, b, t) {
   const K = pad.width / 720; // 分辨率补偿：任何画布尺寸下手感一致
@@ -930,8 +969,8 @@ function strokeTo(a, b, t) {
 }
 function pushUndo() {
   try {
-    undoStack.push(pctx.getImageData(0, 0, pad.width, pad.height));
-    if (undoStack.length > 3) undoStack.shift(); // 高分辨率下控制内存
+    undoStack.push(pad.toDataURL("image/png")); // PNG 压缩快照，省内存
+    if (undoStack.length > 10) undoStack.shift();
   } catch (e) {}
 }
 
@@ -1350,9 +1389,11 @@ $$("#scr-draw .size-btn").forEach(b => b.addEventListener("click", () => {
 $("#btn-eraser").addEventListener("click", () => { sTap(); brush.eraser = true; renderPalette(); });
 $("#btn-undo").addEventListener("click", () => {
   sTap();
-  const im = undoStack.pop();
-  if (im) pctx.putImageData(im, 0, 0); else toast("没有可以撤销的啦～");
-  saveDraft();
+  const snap = undoStack.pop();
+  if (!snap) { toast("没有可以撤销的啦～"); return; }
+  const im = new Image();
+  im.onload = () => { pctx.clearRect(0, 0, pad.width, pad.height); pctx.drawImage(im, 0, 0); saveDraft(); };
+  im.src = snap;
 });
 $("#btn-clear").addEventListener("click", () => {
   modal("重新画一张？", "现在这张画会被擦掉哦，确定吗？", [
