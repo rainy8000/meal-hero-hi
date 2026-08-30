@@ -1761,7 +1761,8 @@ async function pullCloud() {
     if (!ref.object) return null;
     const commit = await (await fetch(`${base}/git/commits/${ref.object.sha}`, { headers: h, cache: "no-store" })).json();
     const tree = await (await fetch(`${base}/git/trees/${commit.tree.sha}`, { headers: h, cache: "no-store" })).json();
-    const entry = (tree.tree || []).find(t => t.path === ("state-" + (accountId || "default") + ".json"));
+    let entry = (tree.tree || []).find(t => t.path === ("state-" + (accountId || "default") + ".json"));
+    if (!entry) entry = (tree.tree || []).find(t => t.path === "state.json"); // 兼容旧版单文件存档
     if (!entry) return null;
     const blob = await (await fetch(`${base}/git/blobs/${entry.sha}`, { headers: h, cache: "no-store" })).json();
     return JSON.parse(decodeURIComponent(escape(atob((blob.content || "").replace(/\n/g, "")))));
