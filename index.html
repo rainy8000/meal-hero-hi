@@ -1296,6 +1296,38 @@ const BUILTIN_IMG_TPLS = [
   { id: "bi_kuromi", name: "库洛米", file: "tpl/kuromi.png" },
   { id: "bi_kuromi2", name: "库洛米线稿", file: "tpl/kuromi2.png" },
 ];
+/* 图片型拓印绘制：自动裁掉白边 + 只加深线条（白底保持白，浅色描红也清晰） */
+function paintImgTpl(ctx2, W, H, file) {
+  const im = new Image();
+  im.onload = () => {
+    try {
+      const c = document.createElement("canvas"); c.width = im.width; c.height = im.height;
+      const x = c.getContext("2d"); x.drawImage(im, 0, 0);
+      const id = x.getImageData(0, 0, im.width, im.height);
+      const d = id.data;
+      let minX = im.width, minY = im.height, maxX = -1, maxY = -1;
+      for (let i = 0; i < d.length; i += 4) {
+        const lum = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+        const xx = (i / 4) % im.width, yy = Math.floor(i / 4 / im.width);
+        if (lum < 240) {
+          if (xx < minX) minX = xx; if (xx > maxX) maxX = xx; if (yy < minY) minY = yy; if (yy > maxY) maxY = yy;
+          d[i] = d[i + 1] = d[i + 2] = Math.max(60, 255 - Math.round((255 - lum) * 3.5)); // 线条加深
+        } else {
+          d[i] = d[i + 1] = d[i + 2] = 255; // 白底保持纯白
+        }
+      }
+      x.putImageData(id, 0, 0);
+      const mx = Math.round((maxX - minX) * 0.02), my = Math.round((maxY - minY) * 0.02);
+      ctx2.save();
+      ctx2.clearRect(0, 0, W, H);
+      ctx2.drawImage(c, minX - mx, minY - my, maxX - minX + mx * 2 + 1, maxY - minY + my * 2 + 1, 0, 0, W, H);
+      ctx2.restore();
+    } catch (e) {
+      ctx2.drawImage(im, 0, 0, W, H);
+    }
+  };
+  im.src = file;
+}
 function tplEntries() {
   const list = TPL.slice();
   BUILTIN_IMG_TPLS.forEach(b => list.push({ id: b.id, name: b.name, draw: null, builtinImg: b }));
@@ -1312,10 +1344,10 @@ function renderTemplates() {
     const cc = c.getContext("2d");
     cc.fillStyle = "#fff"; cc.fillRect(0, 0, 140, 140);
     if (t.builtinImg) {
-      const im = new Image(); im.onload = () => cc.drawImage(im, 0, 0, 140, 140); im.src = t.builtinImg.file;
+      paintImgTpl(cc, 140, 140, t.builtinImg.file);
     } else if (t.custom) {
       const ct = (S.customTpls || []).find(x => x.id === t.id);
-      if (ct) { const im = new Image(); im.onload = () => cc.drawImage(im, 0, 0, 140, 140); im.src = ct.png; }
+      if (ct) paintImgTpl(cc, 140, 140, ct.png);
     } else if (t.draw) {
       cc.save(); cc.scale(140 / 720, 140 / 720);
       TPL_STYLE = { lw: 26, color: "#B7AFC6" };
@@ -1355,9 +1387,7 @@ function drawTemplate() {
     if (S.tpl.indexOf("cu_") === 0) { const ct = (S.customTpls || []).find(x => x.id === S.tpl); src = ct && ct.png; }
     else { const bi = BUILTIN_IMG_TPLS.find(x => x.id === S.tpl); src = bi && bi.file; }
     if (!src) return;
-    const img = new Image();
-    img.onload = () => uctx.drawImage(img, 0, 0, uctx.canvas.width, uctx.canvas.height);
-    img.src = src;
+    paintImgTpl(uctx, uctx.canvas.width, uctx.canvas.height, src);
     return;
   }
   const t = TPL.find(x => x.id === S.tpl);
@@ -1565,10 +1595,10 @@ function renderTplManage() {
     const cc = c.getContext("2d");
     cc.fillStyle = "#fff"; cc.fillRect(0, 0, 140, 140);
     if (t.builtinImg) {
-      const im = new Image(); im.onload = () => cc.drawImage(im, 0, 0, 140, 140); im.src = t.builtinImg.file;
+      paintImgTpl(cc, 140, 140, t.builtinImg.file);
     } else if (t.custom) {
       const ct = (S.customTpls || []).find(x => x.id === t.id);
-      if (ct) { const im = new Image(); im.onload = () => cc.drawImage(im, 0, 0, 140, 140); im.src = ct.png; }
+      if (ct) paintImgTpl(cc, 140, 140, ct.png);
     } else if (t.draw) {
       cc.save(); cc.scale(140 / 720, 140 / 720);
       TPL_STYLE = { lw: 26, color: "#B7AFC6" };
